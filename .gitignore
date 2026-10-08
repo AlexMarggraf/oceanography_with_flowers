@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# weird ahh checkpoint folders
+.ipynb_checkpoints
