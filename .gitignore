@@ -10,4 +10,4 @@ wheels/
 .venv
 
 # weird ahh checkpoint folders
-.ipynb_checkpoints
+*.ipynb_checkpoints

@@ -4,7 +4,7 @@ from torch.optim.lr_scheduler import (
     CosineAnnealingLR,
     SequentialLR
 )
-from oceanograph_with_flowers.utils import (
+from oceanography_with_flowers.utils import (
     open_pactcs30,
     load_pactcs30,
     clean_pactcs30,
