@@ -1,3 +1,5 @@
+from torch import nn
+from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import (
     LinearLR,
@@ -5,12 +7,13 @@ from torch.optim.lr_scheduler import (
     SequentialLR
 )
 from oceanography_with_flowers.utils import (
-    open_pactcs30,
     load_pactcs30,
     clean_pactcs30,
     tensor_to_dataset,
     plot_dataset,
 )
+from oceanography_with_flowers.model.fno import Pactcs30Fno
+from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 
 def train(dataloader, model, loss_fn, optimizer, scheduler, mask):
     """
@@ -84,7 +87,7 @@ def test(dataloader, model, loss_fn, mask):
     #plot_dataset(pred_dataset)
     #plot_dataset(label_dataset)
 
-if __name__ == "__main__":
+def main():
     # TODO: use configs for this
     fno = Pactcs30Fno()
 
@@ -94,7 +97,7 @@ if __name__ == "__main__":
     epochs = 5
 
     loss_fn = nn.L1Loss()
-    optimizer = torch.optim.AdamW(fno.parameters(), lr=base_lr)
+    optimizer = AdamW(fno.parameters(), lr=base_lr)
 
     total_steps = 100
     warmup_steps = 10
@@ -134,3 +137,6 @@ if __name__ == "__main__":
         print(f"epoch: {i}")
         train(tr_dataloader, fno, loss_fn, optimizer, scheduler, mask)
         test(te_dataloader, fno, loss_fn, mask)
+
+if __name__ == "__main__":
+    main()

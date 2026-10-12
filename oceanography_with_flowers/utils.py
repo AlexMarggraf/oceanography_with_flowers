@@ -2,10 +2,7 @@ import xarray as xr
 import xroms
 import xcmocean
 import matplotlib.pyplot as plt
-import os
 import numpy as np
-import torch
-
 
 def open_pactcs30(year=2010):
     """

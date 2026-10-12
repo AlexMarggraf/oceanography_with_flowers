@@ -1,11 +1,6 @@
-import xarray as xr
-import xroms
-import xcmocean
-import matplotlib.pyplot as plt
 import os
-import numpy as np
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
 class Pactcs30Dataset(Dataset):
