@@ -4,6 +4,8 @@ from neuralop.layers.fno_block import FNOBlocks
 class Pactcs30Fno(nn.Module):
     """
     Represents the FNO used to predict pactcs30 data.
+    
+    
     """
 
     def __init__(self):

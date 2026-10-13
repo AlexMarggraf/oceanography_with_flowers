@@ -1,0 +1,205 @@
+epoch: 0
+Avg loss: 13.820120 
+
+Avg loss: 11.612163 
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+epoch: 1
+Avg loss: 9.764818 
+
+Avg loss: 7.608852 
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+epoch: 2
+Avg loss: 6.406897 
+
+Avg loss: 5.199271 
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+epoch: 3
+Avg loss: 4.509072 
+
+Avg loss: 3.766017 
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+epoch: 4
+Avg loss: 3.216543 
+
+Avg loss: 2.732379 
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+
+<xarray.Dataset> Size: 14MB
+Dimensions:   (eta_rho: 518, xi_rho: 604)
+Coordinates:
+  * eta_rho   (eta_rho) int64 4kB 0 1 2 3 4 5 6 ... 511 512 513 514 515 516 517
+  * xi_rho    (xi_rho) int64 5kB 0 1 2 3 4 5 6 7 ... 597 598 599 600 601 602 603
+    lat_rho   (eta_rho, xi_rho) float32 1MB 60.35 60.19 60.04 ... 35.92 35.94
+    lon_rho   (eta_rho, xi_rho) float32 1MB 66.9 67.32 67.73 ... 251.5 251.6
+Data variables:
+    u         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    v         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    w         (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    temp      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    salt      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    zeta      (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    DIC       (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    PCO2OC    (eta_rho, xi_rho) float32 1MB nan nan nan nan ... nan nan nan nan
+    mask_rho  (eta_rho, xi_rho) float32 1MB 0.0 0.0 0.0 0.0 ... 0.0 0.0 0.0 0.0
+

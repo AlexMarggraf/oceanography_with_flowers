@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=4                 #This is the number of cores reserved
 #SBATCH --mem-per-cpu=8G              #This is the memory reserved per core.
 
-#SBATCH --time=06:00:00        #This is the time that your task will run
-#SBATCH --qos=6hours           #You will run in this queue
+#SBATCH --time=00:30:00        #This is the time that your task will run
+#SBATCH --qos=30min           #You will run in this queue
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=out     #These are the STDOUT and STDERR files

@@ -21,10 +21,10 @@ class Pactcs30Dataset(Dataset):
             dataset (xarray.Dataset): Data to be used in Dataset.
         """
 
-        self.data
-        self.transform
-        self.target_transform
-        self.len
+        self.data = None
+        self.transform = None
+        self.target_transform = None
+        self.len = 0
         
         # -1 because last entry has no next simulation step
         self.len = dataset.sizes["time"] - 1

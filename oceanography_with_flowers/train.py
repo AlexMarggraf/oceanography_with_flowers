@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
@@ -33,7 +34,7 @@ def train(dataloader, model, loss_fn, optimizer, scheduler, mask):
     train_loss = 0
     
     for batch, (X, y) in enumerate(dataloader):
-        pred = fno(X)
+        pred = model(X)
         v_mask = mask.expand_as(pred)
         
         loss = loss_fn(pred[v_mask], y[v_mask])
@@ -75,17 +76,7 @@ def test(dataloader, model, loss_fn, mask):
     
     feature, label = next(iter(dataloader))
     pred = model(feature)
-    pred_dataset = tensor_to_dataset(pred[0], te_mean, te_std, te_data.mask_rho, te_data.eta_rho, te_data.xi_rho, te_data.lat_rho, te_data.lon_rho)
-    label_dataset = tensor_to_dataset(label[0], te_mean, te_std, te_data.mask_rho, te_data.eta_rho, te_data.xi_rho, te_data.lat_rho, te_data.lon_rho)
-
-    print(pred_dataset)
-    print("")
-    print(label_dataset)
-    print("")
-    
-    # can be used to plot results
-    #plot_dataset(pred_dataset)
-    #plot_dataset(label_dataset)
+    return pred, label
 
 def main():
     # TODO: use configs for this
@@ -136,7 +127,19 @@ def main():
     for i in range(epochs):
         print(f"epoch: {i}")
         train(tr_dataloader, fno, loss_fn, optimizer, scheduler, mask)
-        test(te_dataloader, fno, loss_fn, mask)
+        pred, label = test(te_dataloader, fno, loss_fn, mask)
+
+        pred_dataset = tensor_to_dataset(pred[0], te_mean, te_std, te_data.mask_rho, te_data.eta_rho, te_data.xi_rho, te_data.lat_rho, te_data.lon_rho)
+        label_dataset = tensor_to_dataset(label[0], te_mean, te_std, te_data.mask_rho, te_data.eta_rho, te_data.xi_rho, te_data.lat_rho, te_data.lon_rho)
+
+        print(pred_dataset)
+        print("")
+        print(label_dataset)
+        print("")
+
+	# can be used to plot results
+        #plot_dataset(pred_dataset)
+        #plot_dataset(label_dataset)
 
 if __name__ == "__main__":
     main()
