@@ -52,7 +52,7 @@ def main(model_path, data_path):
     train_ds = Pactcs30Dataset(path, data_vars, timespan=train_timespan)
     val_ds = Pactcs30Dataset(path, data_vars, timespan=val_timespan)
         
-    trainer = Pactcs30Trainer(model, train_ds, val_ds, batch_size, loss_fn, epochs, device, pred_vars)
+    trainer = Pactcs30Trainer(model, train_ds, val_ds, batch_size, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
     trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":

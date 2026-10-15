@@ -30,4 +30,4 @@
 #add your command lines below
 #############################
 
-uv run train
+uv run train.py --model-path configs/model.yaml --data-path configs/data.yaml

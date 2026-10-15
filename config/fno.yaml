@@ -31,4 +31,3 @@ decay_scheduler:
 scheduler:
   _target_: torch.optim.lr_scheduler.SequentialLR
   milestones: [100]
-  
