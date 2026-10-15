@@ -11,3 +11,9 @@ wheels/
 
 # weird ahh checkpoint folders
 *.ipynb_checkpoints
+
+# weights
+oceanography_with_flowers/weights/
+
+# wandb
+oceanography_with_flowers/wandb/

@@ -1,0 +1,5 @@
+path: "../../../GROUP/pactcs30/"
+data_vars: ["u", "v", "w", "temp", "salt", "zeta", "DIC", "PCO2OC", "dx", "dy", "angle", "mask_rho"]
+pred_vars: ["u", "v", "w", "temp", "salt", "zeta", "DIC", "PCO2OC"]
+train_range: [2010, 2011]
+val_range: [2011, 2012]

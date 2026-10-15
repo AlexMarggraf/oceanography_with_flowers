@@ -1,145 +1,74 @@
+import argparse
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import (
     LinearLR,
     CosineAnnealingLR,
     SequentialLR
 )
-from oceanography_with_flowers.utils import (
-    load_pactcs30,
-    clean_pactcs30,
-    tensor_to_dataset,
-    plot_dataset,
-)
+from omegaconf import OmegaConf
+from hydra.utils import instantiate
+
 from oceanography_with_flowers.model.fno import Pactcs30Fno
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
+from oceanography_with_flowers.trainer import Pactcs30Trainer
 
-def train(dataloader, model, loss_fn, optimizer, scheduler, mask):
-    """
-    Train a model on pactcs30 data.
+def main(model_path, data_path):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model_cfg = OmegaConf.load(model_path)
+    data_cfg = OmegaConf.load(data_path)
 
-    Args:
-        dataloader (torch.utils.data.DataLoader): Dataloader for training process.
-        model: Model that is supposed to be trained.
-        loss_fn: Loss function to be used.
-        optimizer: Optimizer to be used.
-        scheduler: Scheduler to be used.
-        mask: Mask to remove land points when calculating loss.
-    """
+    model = instantiate(model_cfg.model).to(device)
+    loss_fn = instantiate(model_cfg.loss)
+    optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
 
-    num_batches = len(dataloader)
-    model.train()
-    train_loss = 0
-    
-    for batch, (X, y) in enumerate(dataloader):
-        pred = model(X)
-        v_mask = mask.expand_as(pred)
+    warmup_scheduler = instantiate(model_cfg.warmup_scheduler, optimizer=optimizer)
+    decay_scheduler = instantiate(model_cfg.decay_scheduler, optimizer=optimizer)
+
+    scheduler = instantiate(
+        model_cfg.scheduler,
+        optimizer=optimizer,
+        schedulers=[warmup_scheduler, decay_scheduler]
+        )
+
+    batch_size = model_cfg.batch_size
+    epochs = model_cfg.epochs
+    project_name = model_cfg.project_name
+
+    config = OmegaConf.to_container(model_cfg, resolve=True)
+
+    path = data_cfg.path
+    data_vars = data_cfg.data_vars
+    pred_vars = data_cfg.pred_vars
+    train_range = data_cfg.train_range
+    val_range = data_cfg.val_range
+    weight_path = data_cfg.weight_path
+    wandb_path = data_cfg.wandb_path
+
+    train_timespan = [i for i in range(train_range[0], train_range[1])]
+    val_timespan = [i for i in range(val_range[0], val_range[1])]
+
+    train_ds = Pactcs30Dataset(path, data_vars, timespan=train_timespan)
+    val_ds = Pactcs30Dataset(path, data_vars, timespan=val_timespan)
         
-        loss = loss_fn(pred[v_mask], y[v_mask])
-        loss.backward()
-        
-        optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-
-        train_loss += loss.item()
-
-    train_loss /= num_batches
-    print(f"Avg loss: {train_loss:>8f} \n")
-
-def test(dataloader, model, loss_fn, mask):
-    """
-    Test a model on pactcs30 data.
-
-    Args:
-        dataloader (torch.utils.data.DataLoader): Dataloader for training process.
-        model: Model that is supposed to be trained.
-        loss_fn: Loss function to be used.
-        mask: Mask to remove land points when calculating loss.
-    """
-
-    model.eval()
-    num_batches = len(dataloader)
-    test_loss = 0
-
-    with torch.no_grad():
-        for X, y in dataloader:
-            pred = model(X)
-            v_mask = mask.expand_as(pred)
-            
-            test_loss += loss_fn(pred[v_mask], y[v_mask]).item()
-
-    test_loss /= num_batches
-    print(f"Avg loss: {test_loss:>8f} \n")
-    
-    feature, label = next(iter(dataloader))
-    pred = model(feature)
-    return pred, label
-
-def main():
-    # TODO: use configs for this
-    fno = Pactcs30Fno()
-
-    base_lr = 1e-3
-    min_lr = 1e-6
-    batch_size = 32
-    epochs = 5
-
-    loss_fn = nn.L1Loss()
-    optimizer = AdamW(fno.parameters(), lr=base_lr)
-
-    total_steps = 100
-    warmup_steps = 10
-    decay_steps = total_steps - warmup_steps
-
-    warmup_scheduler = LinearLR(
-        optimizer,
-        start_factor=0.01,
-        end_factor=1.0,
-        total_iters=warmup_steps
-    )
-
-    cosine_scheduler = CosineAnnealingLR(
-        optimizer,
-        T_max=decay_steps,
-        eta_min=min_lr
-    )
-
-    scheduler = SequentialLR(
-        optimizer,
-        schedulers=[warmup_scheduler, cosine_scheduler],
-        milestones=[warmup_steps]
-    )
-
-    tr_data, tr_mean, tr_std = load_pactcs30([2010])
-    te_data, te_mean, te_std = load_pactcs30([2011])
-
-    tr_data = clean_pactcs30(tr_data, tr_mean, tr_std)
-    te_data = clean_pactcs30(te_data, te_mean, te_std)
-
-    tr_dataloader = DataLoader(Pactcs30Dataset(tr_data), batch_size=batch_size, shuffle=True)
-    te_dataloader = DataLoader(Pactcs30Dataset(te_data), batch_size=batch_size, shuffle=True)
-
-    mask = torch.from_numpy(tr_data.mask_rho.values).bool()
-
-    for i in range(epochs):
-        print(f"epoch: {i}")
-        train(tr_dataloader, fno, loss_fn, optimizer, scheduler, mask)
-        pred, label = test(te_dataloader, fno, loss_fn, mask)
-
-        pred_dataset = tensor_to_dataset(pred[0], te_mean, te_std, te_data.mask_rho, te_data.eta_rho, te_data.xi_rho, te_data.lat_rho, te_data.lon_rho)
-        label_dataset = tensor_to_dataset(label[0], te_mean, te_std, te_data.mask_rho, te_data.eta_rho, te_data.xi_rho, te_data.lat_rho, te_data.lon_rho)
-
-        print(pred_dataset)
-        print("")
-        print(label_dataset)
-        print("")
-
-	# can be used to plot results
-        #plot_dataset(pred_dataset)
-        #plot_dataset(label_dataset)
+    trainer = Pactcs30Trainer(model, train_ds, val_ds, batch_size, loss_fn, epochs, device, pred_vars)
+    trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train and validate models on pactcs30 data")
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        required=True,
+        help="Path to model config file",
+    )
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        required=True,
+        help="Path to data config file",
+    )
+
+    args = parser.parse_args()
+    main(args.model_path, args.data_path)
