@@ -17,3 +17,7 @@ oceanography_with_flowers/weights/
 
 # wandb
 oceanography_with_flowers/wandb/
+
+#slurm
+err
+out

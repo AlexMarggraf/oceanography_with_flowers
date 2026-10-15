@@ -32,5 +32,4 @@
 
 #add your command lines below
 #############################
-
-uv run train.py --model-path configs/model.yaml --data-path configs/data.yaml
+uv run oceanography_with_flowers/train.py --model-path config/fno.yaml --data-path config/pactcs30.yaml
