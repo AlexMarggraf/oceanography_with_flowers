@@ -15,6 +15,15 @@ from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
 def main(model_path, data_path):
+    """
+    Build model from config file, load metadata from config file, and start training loop.
+    Fully modular, config file dictates hyper parameters and what model will be used in training.
+
+    Args:
+        model_path (str): Path to model config file
+        data_path (str): Path to data config file
+    """
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cfg = OmegaConf.load(model_path)
     data_cfg = OmegaConf.load(data_path)

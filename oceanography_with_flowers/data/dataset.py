@@ -9,6 +9,17 @@ from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
 class Pactcs30Dataset(Dataset):
+    """
+    Dataset for the Pactcs30 20 year hindcast.
+
+    Args:
+        path (str): Path to the stored data
+        data_vars ([str]): All variables of the dataset that are needed for prediction
+        keep_raw ([str]): All variables that shouldn't be normalized
+        timespan ([int]): What years should be loaded
+        depth (int): Amount of depth levels
+    """
+
     def __init__(self, path, data_vars, keep_raw=["mask_rho", "angle"], timespan=[2010], depth=1):
         self.data = None
         self.len = 0
@@ -29,6 +40,7 @@ class Pactcs30Dataset(Dataset):
         dataset = self.load_pactcs30(path, timespan)
         dataset = self.clean_pactcs30(dataset, data_vars, keep_raw)
 
+        # stored for translation from tensor to dataset
         self.mask_rho = dataset["mask_rho"]
         self.eta_rho = dataset["eta_rho"]
         self.xi_rho = dataset["xi_rho"]
@@ -39,7 +51,7 @@ class Pactcs30Dataset(Dataset):
         self.len = dataset.sizes["time"] - 1
         self.data = [None] * (self.len + 1)
 
-        # i chose xi here so i don't have to transpose
+        # sinusoidal encoding of time to represent cyclic nature of dates
         row, col = dataset.sizes["eta_rho"], dataset.sizes["xi_rho"]
         time_vec = torch.linspace(0, 2*np.pi, col)
         time_mat = time_vec.repeat(row, 1)
@@ -53,6 +65,7 @@ class Pactcs30Dataset(Dataset):
         
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
 
+        # positional encoding because data is on a curvilinear grid
         h_xi = torch.from_numpy(dataset["dx"].values)
         h_eta = torch.from_numpy(dataset["dy"].values)
         
@@ -68,7 +81,7 @@ class Pactcs30Dataset(Dataset):
             ]
         )
 
-        # dx and dy shouldn't be in keep_raw since they should be normalized, which keep_raw prevents
+        # dx and dy shouldn't be in keep_raw because they should be normalized
         exclude = keep_raw + ["dx", "dy"]
         feature_vars = [v for v in data_vars if v not in exclude]
         
@@ -83,7 +96,8 @@ class Pactcs30Dataset(Dataset):
             self.data[idx] = torch.cat(features, dim=0)
 
         jobs = [i for i in range(self.len + 1)]
-        
+
+        # probably not nessecary
         with ThreadPoolExecutor((os.cpu_count() or 1)) as executor:
             list(executor.map(store_tensor, jobs))
             
@@ -110,10 +124,11 @@ class Pactcs30Dataset(Dataset):
         Open single pactcs30.zarr file.
     
         Args:
-            year (int): Year of the simulation data.
+            path (str): Path to the data file
+            year (int): Year of the simulation data
         
         Returns:
-            xarray.Dataset: Data as a dataset.
+            xarray.Dataset: Data as a dataset
         """
     
         file_path = path + "pactcs30_" + str(year) + "_avg.zarr"
@@ -128,13 +143,14 @@ class Pactcs30Dataset(Dataset):
     
     def load_pactcs30(self, path, timespan=[2010]):
         """
-        Load multiple pactcs30.zarr files into one dataset
+        Load multiple pactcs30.zarr files into one dataset.
     
         Args:
-            timespan ([int]): List of all years the data should cover.
+            path (str): Path to the data files
+            timespan ([int]): List of all years the data should cover
     
         Returns:
-            xarray.Dataset: All data in one dataset.
+            xarray.Dataset: All data in one dataset
         """
     
         all_data = [self.open_pactcs30(path, year) for year in timespan]
@@ -143,13 +159,13 @@ class Pactcs30Dataset(Dataset):
     
     def clean_pactcs30(self, dataset, data_vars, keep_raw=["mask_rho", "angle"]):
         """
-        Clean and prepare data for usage in training.
+        Clean and prepare data for usage in training. Normalization happens during
+        this step.
     
         Args:
-            dataset (xarray.Dataset): Dataset that's supposed to be cleaned.
-            mean ({string : float}): Dictionary of the mean values of all data variables.
-            std ({string : float}): Dictionary of the standard deviation of all data variables.
-    
+            dataset (xarray.Dataset): Dataset that's supposed to be cleaned
+            data_vars ([str]): All variables to include from dataset
+
         Returns:
             xarray.Dataset: Cleaned data in dataset.
         """
@@ -220,17 +236,11 @@ class Pactcs30Dataset(Dataset):
         Turn tensor into dataset.
     
         Args:
-            tensor (torch.Tensor): The tensor that will be turned into a dataset.
-            mean ({string : float}): Dictionary of the mean values of all data variables.
-            std ({string : float}): Dictionary of the standard deviation of all data variables.
-            mask (xarray.DataArray): The mask values for land/ocean.
-            eta_rho (xarray.DataArray): The rho points in y direction.
-            xi_rho (xarray.DataArray): The rho points in x direction.
-            lat_rho (xarray.DataArray): Latitude of rho points.
-            lon_rho (xarray.DataArray): Longitude of rho points.
+            tensor (torch.Tensor): The tensor that will be turned into a dataset
+            pred_vars ([str]): The variables that were predicted during training
     
         Returns:
-            xarray.Dataset: Tensor represented as dataset.
+            xarray.Dataset: Tensor represented as dataset
         """
     
         tensor_data = tensor.detach().cpu().numpy()
@@ -263,16 +273,16 @@ class Pactcs30Dataset(Dataset):
     
         return dataset
     
-    def plot_dataset(self, dataset, vars=["temp"]):
+    def plot_dataset(self, dataset, data_vars=["temp"]):
         """
         Plot pactcs30 dataset.
     
         Args:
-            dataset (xarray.Dataset): Dataset to be visualized.
-            vars ([string]): Data variables to be visualized.
+            dataset (xarray.Dataset): Dataset to be visualized
+            data_vars ([str]): Data variables to be visualized
         """
     
-        for v in vars:
+        for v in data_vars:
             dataset[v].cf.plot(
                 x="longitude",
                 y="latitude",
@@ -280,4 +290,5 @@ class Pactcs30Dataset(Dataset):
                 cmap="cmo.thermal",
             )
             plt.title(f"{v}")
+            #TODO store plot
             plt.show()
