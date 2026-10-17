@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 import wandb
 from pathlib import Path
 
@@ -10,9 +9,8 @@ class Pactcs30Trainer():
 
     Args:
         model (nn.Module): Model used for training
-        train_ds (Pactcs30Dataset): Dataset of the training data
-        val_ds (Pactcs30Dataset): Dataset of the validation data
-        batch_size (int): Batch size
+        train_dl (Dataloader): Dataloader of the training data
+        val_dl (Dataloader): Dataloader of the validation data
         loss_fn (Callable): Loss function to be used in training and validation
         optimizer: Optimizer used during training
         scheduler: Scheduler used during training
@@ -21,11 +19,11 @@ class Pactcs30Trainer():
         pred_vars: The variables that are predicted by the model
     """
 
-    def __init__(self, model, train_ds, val_ds, batch_size, loss_fn, optimizer, scheduler, epochs, device, pred_vars):
+    def __init__(self, model, train_dl, val_dl, loss_fn, optimizer, scheduler, epochs, device, pred_vars):
         self.model = model
-        self.train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True)
-        self.val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=True)
-        self.mask = train_ds.get_mask()
+        self.train_dl = train_dl
+        self.val_dl = val_dl
+        self.mask = train_dl.dataset.get_mask()
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -62,7 +60,7 @@ class Pactcs30Trainer():
 
         return train_loss / no_batches
     
-    def validate_model(self):
+    def validate_model(self, epoch, save_plot=False):
         """
         One iteration of the validation loop.
 
@@ -85,15 +83,16 @@ class Pactcs30Trainer():
                 loss = self.loss_fn(pred[v_mask], label[v_mask])
                 val_loss += loss.item()
         
-        #feature, label = next(iter(self.val_dl))
-        #feature = feature.to(device)
-        #pred = self.model(feature)
+        if save_plot:
+            feature, label = next(iter(self.val_dl))
+            feature = feature.to(self.device)
+            pred = self.model(feature)
 
-        #pred = self.train_dl.dataset.tensor_to_dataset(pred[0], self.pred_vars)
-        #label = self.train_dl.dataset.tensor_to_dataset(label[0], self.pred_vars)
+            pred = self.train_dl.dataset.tensor_to_dataset(pred[0], self.pred_vars)
+            label = self.train_dl.dataset.tensor_to_dataset(label[0], self.pred_vars)
 
-        #self.train_dl.dataset.plot_dataset(label)
-        #self.train_dl.dataset.plot_dataset(pred)
+            self.train_dl.dataset.plot_dataset(label, f"{self.wandb_path}/img/epoch_{epoch}", data_vars=self.data_vars)
+            self.train_dl.dataset.plot_dataset(pred, f"{self.wandb_path}/img/epoch_{epoch}", data_vars=self.data_vars)
 
         return val_loss / no_batches
 
@@ -112,16 +111,17 @@ class Pactcs30Trainer():
         weight_path = Path(f"{weight_path}/run_{run.id}")
         weight_path.mkdir(parents=True, exist_ok=True)
         
-        for i in range(self.epochs):
+        for epoch in range(self.epochs):
+            save_plot = True if (epoch == 0 or epoch == self.epochs - 1) else False
             train_loss = self.train_model()
-            val_loss = self.validate_model()
+            val_loss = self.validate_model(epoch, save_plot=save_plot)
             
             wandb.log({
-                "epoch": i,
+                "epoch": epoch,
                 "train_loss": train_loss,
                 "validation_loss": val_loss,
             })
 
-            torch.save(self.model.state_dict(), weight_path / f"model_{i}.pt")
+            torch.save(self.model.state_dict(), weight_path / f"model_{epoch}.pt")
 
         wandb.finish()

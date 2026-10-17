@@ -273,12 +273,13 @@ class Pactcs30Dataset(Dataset):
     
         return dataset
     
-    def plot_dataset(self, dataset, data_vars=["temp"]):
+    def plot_dataset(self, dataset, path, data_vars=["temp"]):
         """
         Plot pactcs30 dataset.
     
         Args:
             dataset (xarray.Dataset): Dataset to be visualized
+            path (str): Where to store data
             data_vars ([str]): Data variables to be visualized
         """
     
@@ -290,5 +291,4 @@ class Pactcs30Dataset(Dataset):
                 cmap="cmo.thermal",
             )
             plt.title(f"{v}")
-            #TODO store plot
-            plt.show()
+            plt.savefig(f"{path}/{v}.png")

@@ -21,13 +21,10 @@ warmup_scheduler:
   _target_: torch.optim.lr_scheduler.LinearLR
   start_factor: 0.01
   end_factor: 1.0
-  total_iters: 100
 
 decay_scheduler:
   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
-  T_max: 900
   eta_min: 1.0e-6
 
 scheduler:
   _target_: torch.optim.lr_scheduler.SequentialLR
-  milestones: [100]

@@ -2,6 +2,7 @@ import argparse
 import torch
 from torch import nn
 from torch.optim import AdamW
+from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import (
     LinearLR,
     CosineAnnealingLR,
@@ -28,25 +29,6 @@ def main(model_path, data_path):
     model_cfg = OmegaConf.load(model_path)
     data_cfg = OmegaConf.load(data_path)
 
-    model = instantiate(model_cfg.model).to(device)
-    loss_fn = instantiate(model_cfg.loss)
-    optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
-
-    warmup_scheduler = instantiate(model_cfg.warmup_scheduler, optimizer=optimizer)
-    decay_scheduler = instantiate(model_cfg.decay_scheduler, optimizer=optimizer)
-
-    scheduler = instantiate(
-        model_cfg.scheduler,
-        optimizer=optimizer,
-        schedulers=[warmup_scheduler, decay_scheduler]
-        )
-
-    batch_size = model_cfg.batch_size
-    epochs = model_cfg.epochs
-    project_name = model_cfg.project_name
-
-    config = OmegaConf.to_container(model_cfg, resolve=True)
-
     path = data_cfg.path
     data_vars = data_cfg.data_vars
     pred_vars = data_cfg.pred_vars
@@ -58,10 +40,41 @@ def main(model_path, data_path):
     train_timespan = [i for i in range(train_range[0], train_range[1])]
     val_timespan = [i for i in range(val_range[0], val_range[1])]
 
-    train_ds = Pactcs30Dataset(path, data_vars, timespan=train_timespan)
-    val_ds = Pactcs30Dataset(path, data_vars, timespan=val_timespan)
+    train_dl = DataLoader(Pactcs30Dataset(path, data_vars, timespan=train_timespan), batch_size=batch_size, shuffle=True)
+    val_dl = DataLoader(Pactcs30Dataset(path, data_vars, timespan=val_timespan, batch_size=batch_size, shuffle=True))
+
+    batch_size = model_cfg.batch_size
+    epochs = model_cfg.epochs
+    project_name = model_cfg.project_name
+
+    model = instantiate(model_cfg.model).to(device)
+    loss_fn = instantiate(model_cfg.loss)
+    optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
+
+    total_steps = len(train_dl) * epochs
+    warmup_steps = int(total_steps * 0.1)
+    decay_steps = total_steps - warmup_steps
+
+    warmup_scheduler = instantiate(
+        model_cfg.warmup_scheduler,
+        optimizer=optimizer,
+        total_iters=warmup_steps)
+    
+    decay_scheduler = instantiate(
+        model_cfg.decay_scheduler,
+        optimizer=optimizer,
+        T_max=decay_steps)
+
+    scheduler = instantiate(
+        model_cfg.scheduler,
+        optimizer=optimizer,
+        schedulers=[warmup_scheduler, decay_scheduler],
+        milestones=[warmup_steps]
+        )
+
+    config = OmegaConf.to_container(model_cfg, resolve=True)
         
-    trainer = Pactcs30Trainer(model, train_ds, val_ds, batch_size, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
+    trainer = Pactcs30Trainer(model, train_dl, val_dl, batch_size, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
     trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":
