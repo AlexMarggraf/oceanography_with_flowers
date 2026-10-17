@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 class Pactcs30Dataset(Dataset):
     """
@@ -273,22 +274,30 @@ class Pactcs30Dataset(Dataset):
     
         return dataset
     
-    def plot_dataset(self, dataset, path, data_vars=["temp"]):
+    def plot_dataset(self, dataset, path, data_vars):
         """
         Plot pactcs30 dataset.
-    
+
         Args:
             dataset (xarray.Dataset): Dataset to be visualized
             path (str): Where to store data
             data_vars ([str]): Data variables to be visualized
         """
-    
+        create_dir = Path(path)
+        create_dir.mkdir(parents=True, exist_ok=True)
+
         for v in data_vars:
+            fig, ax = plt.subplots(figsize=(8, 6))
+            
             dataset[v].cf.plot(
+                ax=ax,
                 x="longitude",
                 y="latitude",
                 robust=True,
                 cmap="cmo.thermal",
             )
-            plt.title(f"{v}")
-            plt.savefig(f"{path}/{v}.png")
+            ax.set_title(f"{v}")
+            fig.savefig(create_dir / f"{v}.png", dpi=300, bbox_inches="tight")
+            
+            # Close the figure so the next iteration starts with a fresh canvas
+            plt.close(fig)

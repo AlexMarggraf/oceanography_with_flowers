@@ -60,7 +60,7 @@ class Pactcs30Trainer():
 
         return train_loss / no_batches
     
-    def validate_model(self, epoch, save_plot=False):
+    def validate_model(self, img_path=None, save_plot=False):
         """
         One iteration of the validation loop.
 
@@ -91,8 +91,8 @@ class Pactcs30Trainer():
             pred = self.train_dl.dataset.tensor_to_dataset(pred[0], self.pred_vars)
             label = self.train_dl.dataset.tensor_to_dataset(label[0], self.pred_vars)
 
-            self.train_dl.dataset.plot_dataset(label, f"{self.wandb_path}/img/epoch_{epoch}", data_vars=self.data_vars)
-            self.train_dl.dataset.plot_dataset(pred, f"{self.wandb_path}/img/epoch_{epoch}", data_vars=self.data_vars)
+            self.train_dl.dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
+            self.train_dl.dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
 
         return val_loss / no_batches
 
@@ -112,12 +112,13 @@ class Pactcs30Trainer():
         weight_path.mkdir(parents=True, exist_ok=True)
         
         for epoch in range(self.epochs):
-            save_plot = True if (epoch == 0 or epoch == self.epochs - 1) else False
             train_loss = self.train_model()
-            val_loss = self.validate_model(epoch, save_plot=save_plot)
+            if epoch == 0 or epoch == self.epochs - 1:
+                val_loss = self.validate_model(img_path=f"{wandb_path}/img/run_{run.id}/epoch_{epoch}", save_plot=True)
+            else:
+                val_loss = self.validate_model()
             
             wandb.log({
-                "epoch": epoch,
                 "train_loss": train_loss,
                 "validation_loss": val_loss,
             })

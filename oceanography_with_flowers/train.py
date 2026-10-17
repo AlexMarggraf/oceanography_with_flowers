@@ -37,12 +37,6 @@ def main(model_path, data_path):
     weight_path = data_cfg.weight_path
     wandb_path = data_cfg.wandb_path
 
-    train_timespan = [i for i in range(train_range[0], train_range[1])]
-    val_timespan = [i for i in range(val_range[0], val_range[1])]
-
-    train_dl = DataLoader(Pactcs30Dataset(path, data_vars, timespan=train_timespan), batch_size=batch_size, shuffle=True)
-    val_dl = DataLoader(Pactcs30Dataset(path, data_vars, timespan=val_timespan, batch_size=batch_size, shuffle=True))
-
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
     project_name = model_cfg.project_name
@@ -50,6 +44,12 @@ def main(model_path, data_path):
     model = instantiate(model_cfg.model).to(device)
     loss_fn = instantiate(model_cfg.loss)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
+
+    train_timespan = [i for i in range(train_range[0], train_range[1])]
+    val_timespan = [i for i in range(val_range[0], val_range[1])]
+
+    train_dl = DataLoader(Pactcs30Dataset(path, data_vars, timespan=train_timespan), batch_size=batch_size, shuffle=True)
+    val_dl = DataLoader(Pactcs30Dataset(path, data_vars, timespan=val_timespan), batch_size=batch_size, shuffle=True)
 
     total_steps = len(train_dl) * epochs
     warmup_steps = int(total_steps * 0.1)
@@ -74,7 +74,7 @@ def main(model_path, data_path):
 
     config = OmegaConf.to_container(model_cfg, resolve=True)
         
-    trainer = Pactcs30Trainer(model, train_dl, val_dl, batch_size, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
+    trainer = Pactcs30Trainer(model, train_dl, val_dl, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
     trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":
