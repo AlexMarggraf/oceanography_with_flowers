@@ -1,0 +1,6 @@
+path: "../../GROUP/pactcs30/"
+data_vars: ["u", "v", "w", "temp", "salt", "zeta", "DIC", "PCO2OC", "dx", "dy", "angle", "mask_rho"]
+ranges: [2000, 2016, 2018, 2020]
+
+loss_fn:
+  _target_: torch.nn.MSELoss

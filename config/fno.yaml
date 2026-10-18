@@ -1,17 +1,17 @@
 project_name: "fno"
-epochs: 10
+epochs: 50
 batch_size: 16
 
 model:
   _target_: __main__.Pactcs30Fno
   start_channels: 15
   end_channels: 8
-  hidden_channels: 64
+  hidden_channels: 96
   modes: 64
   layers: 4
 
-loss:
-  _target_: torch.nn.L1Loss
+loss_fn:
+  _target_: torch.nn.MSELoss
   
 optimizer:
   _target_: torch.optim.AdamW

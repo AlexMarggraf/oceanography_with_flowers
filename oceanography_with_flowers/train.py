@@ -42,7 +42,7 @@ def main(model_path, data_path):
     project_name = model_cfg.project_name
 
     model = instantiate(model_cfg.model).to(device)
-    loss_fn = instantiate(model_cfg.loss)
+    loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
 
     train_timespan = [i for i in range(train_range[0], train_range[1])]
