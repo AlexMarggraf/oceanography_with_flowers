@@ -1,4 +1,9 @@
-Average Loss for Persistence Baseline:
+Average Loss for Persistence Baseline 1 Day:
 Training Data:   0.145638
 Validation Data: 0.145186
 Test Data:       0.145746
+
+Average Loss for Persistence Baseline 7 Days:
+Training Data:   0.418861
+Validation Data: 0.431171
+Test Data:       0.423280
