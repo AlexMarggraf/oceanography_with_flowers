@@ -110,6 +110,8 @@ class Pactcs30Trainer():
         run = wandb.init(project=project_name, config=config, dir=wandb_path, reinit=True)
         weight_path = Path(f"{weight_path}/run_{run.id}")
         weight_path.mkdir(parents=True, exist_ok=True)
+
+        best_loss = float("inf")
         
         for epoch in range(self.epochs):
             train_loss = self.train_model()
@@ -123,6 +125,8 @@ class Pactcs30Trainer():
                 "validation_loss": val_loss,
             })
 
-            torch.save(self.model.state_dict(), weight_path / f"model_{epoch}.pt")
+            if val_loss < best_loss:
+                best_loss = val_loss
+                torch.save(self.model.state_dict(), weight_path / f"best_loss.pt")
 
         wandb.finish()

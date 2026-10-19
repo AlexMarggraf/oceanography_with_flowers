@@ -9,8 +9,8 @@
 #SBATCH --partition=scicore
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
-#SBATCH --output=out     #These are the STDOUT and STDERR files
-#SBATCH --error=err
+#SBATCH --output=baseline_out     #These are the STDOUT and STDERR files
+#SBATCH --error=baseline_err
 
 #This job runs from the current working directory
 

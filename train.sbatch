@@ -11,8 +11,8 @@
 #SBATCH --ntasks=1
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
-#SBATCH --output=out     #These are the STDOUT and STDERR files
-#SBATCH --error=err
+#SBATCH --output=train_out     #These are the STDOUT and STDERR files
+#SBATCH --error=train_err
 
 #This job runs from the current working directory
 

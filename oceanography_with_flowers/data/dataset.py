@@ -21,7 +21,7 @@ class Pactcs30Dataset(Dataset):
         depth (int): Amount of depth levels
     """
 
-    def __init__(self, path, data_vars, keep_raw=["mask_rho", "angle"], timespan=[2010], depth=1):
+    def __init__(self, path, data_vars, delta=7, keep_raw=["mask_rho", "angle"], timespan=[2010], depth=1):
         self.data = None
         self.len = 0
 
@@ -48,9 +48,9 @@ class Pactcs30Dataset(Dataset):
         self.lat_rho = dataset["lat_rho"]
         self.lon_rho = dataset["lon_rho"]
         
-        # -1 because last entry has no next simulation step
-        self.len = dataset.sizes["time"] - 1
-        self.data = [None] * (self.len + 1)
+        # -delta because last delta days have no next simulation step
+        self.len = dataset.sizes["time"] - delta
+        self.data = [None] * (self.len + delta)
 
         # sinusoidal encoding of time to represent cyclic nature of dates
         row, col = dataset.sizes["eta_rho"], dataset.sizes["xi_rho"]
@@ -96,7 +96,7 @@ class Pactcs30Dataset(Dataset):
 
             self.data[idx] = torch.cat(features, dim=0)
 
-        jobs = [i for i in range(self.len + 1)]
+        jobs = [i for i in range(self.len + delta)]
 
         # probably not nessecary
         with ThreadPoolExecutor((os.cpu_count() or 1)) as executor:
@@ -114,7 +114,7 @@ class Pactcs30Dataset(Dataset):
                 feature
             ], dim=0
         )
-        label = self.data[idx+1][2:]
+        label = self.data[idx+delta][2:]
         return feature, label
 
     def get_mask(self):
@@ -268,8 +268,8 @@ class Pactcs30Dataset(Dataset):
             dataset[v] =  dataset[v].where(dataset["mask_rho"] == 1)
         
         dataset = dataset.assign_coords(
-            lat_rho = self.lat_rho,
-            lon_rho = self.lon_rho,
+            lat_rho=self.lat_rho,
+            lon_rho=self.lon_rho,
         )
     
         return dataset
@@ -294,6 +294,7 @@ class Pactcs30Dataset(Dataset):
                 x="longitude",
                 y="latitude",
                 robust=True,
+                center=False,
                 cmap="cmo.thermal",
             )
             ax.set_title(f"{v}")

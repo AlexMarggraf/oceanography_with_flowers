@@ -1,0 +1,31 @@
+Dataset 1 loaded!
+
+0.0%
+20.0%
+40.0%
+60.0%
+80.0%
+100.0%
+
+Dataset 2 loaded!
+
+0.0%
+19.9%
+39.8%
+59.7%
+79.6%
+99.4%
+
+Dataset 3 loaded!
+
+0.0%
+19.9%
+39.8%
+59.8%
+79.7%
+99.6%
+
+Average Loss for Persistence Baseline:
+Training Data:   0.418861
+Validation Data: 0.431171
+Test Data:       0.423280
