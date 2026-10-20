@@ -1,7 +1,6 @@
 path: "/scicore/home/dokman0000/GROUP/pactcs30/"
 data_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL", "dx", "dy", "angle", "mask_rho"]
 pred_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL"]
-train_range: [2000, 2010]
-val_range: [2010, 2012]
+split: [2000, 2016, 2018]
 weight_path: "oceanography_with_flowers/weights"
 wandb_path: "oceanography_with_flowers"

@@ -18,14 +18,14 @@ def main(baseline_path):
 
     path = bl_cfg.path
     data_vars = bl_cfg.data_vars
-    ranges = bl_cfg.ranges
+    split = bl_cfg.split
 
     loss_fn = instantiate(bl_cfg.loss_fn)
     losses = []
 
     with torch.no_grad():
-        for i in range(len(ranges) - 1):
-            timespan = list(range(ranges[i], ranges[i + 1]))
+        for i in range(len(split) - 1):
+            timespan = list(range(split[i], split[i + 1]))
             ds = Pactcs30Dataset(path, data_vars, timespan=timespan)
             print(f"Dataset {i + 1} loaded!\n", flush=True)
 

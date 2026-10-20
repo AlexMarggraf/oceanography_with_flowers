@@ -32,8 +32,7 @@ def main(model_path, data_path):
     path = data_cfg.path
     data_vars = data_cfg.data_vars
     pred_vars = data_cfg.pred_vars
-    train_range = data_cfg.train_range
-    val_range = data_cfg.val_range
+    split = data_cfg.split
     weight_path = data_cfg.weight_path
     wandb_path = data_cfg.wandb_path
 
@@ -45,13 +44,18 @@ def main(model_path, data_path):
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
 
-    train_timespan = [i for i in range(train_range[0], train_range[1])]
-    val_timespan = [i for i in range(val_range[0], val_range[1])]
+    timespans = []
+    for i in range(len(split) - 1):
+        timespans.append([i for i in range(split[0], split[1])])
 
-    train_dl = DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=train_timespan), batch_size=batch_size, shuffle=True)
-    val_dl = DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=val_timespan), batch_size=batch_size, shuffle=True)
+    dls = []
 
-    total_steps = len(train_dl) * epochs
+    for ts in timespans:
+        dls.append(
+            DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=ts, batch_size=batch_size, shuffle=True))
+        )
+
+    total_steps = len(dls[0]) * epochs
     warmup_steps = int(total_steps * 0.1)
     decay_steps = total_steps - warmup_steps
 
@@ -74,7 +78,7 @@ def main(model_path, data_path):
 
     config = OmegaConf.to_container(model_cfg, resolve=True)
         
-    trainer = Pactcs30Trainer(model, train_dl, val_dl, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
+    trainer = Pactcs30Trainer(model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
     trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":
