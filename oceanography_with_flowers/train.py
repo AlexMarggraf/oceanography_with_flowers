@@ -49,7 +49,6 @@ def main(model_path, data_path):
         timespans.append([i for i in range(split[0], split[1])])
 
     dls = []
-
     for ts in timespans:
         dls.append(
             DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=ts, batch_size=batch_size, shuffle=True))
