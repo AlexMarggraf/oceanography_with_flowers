@@ -83,7 +83,7 @@ class Pactcs30Dataset(Dataset):
             datapoint = dataset.isel(time=idx)
 
             nonlocal row, col
-            base_time = torch.tensor.full((row, col), 2*torch.pi*datapoint["time"].item())
+            base_time = torch.full((row, col), 2*torch.pi*datapoint["time"].item())
             sin_t = torch.sin(base_time)
             cos_t = torch.cos(base_time)
 
@@ -92,7 +92,7 @@ class Pactcs30Dataset(Dataset):
             for v in feature_vars:
                 features.append(torch.from_numpy(datapoint[v].values))
 
-            self.data[idx] = torch.cat(features)
+            self.data[idx] = torch.stack(features)
 
         jobs = [i for i in range(self.len + self.delta)]
 
