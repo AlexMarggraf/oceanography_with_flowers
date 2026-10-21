@@ -53,17 +53,6 @@ class Pactcs30Dataset(Dataset):
         self.len = dataset.sizes["time"] - self.delta
         self.data = [None] * (self.len + self.delta)
 
-        # sinusoidal encoding of time to represent cyclic nature of dates
-        row, col = dataset.sizes["eta_rho"], dataset.sizes["xi_rho"]
-        time_vec = torch.linspace(0, 2*np.pi, col)
-        time_mat = time_vec.repeat(row, 1)
-
-        self.base_time = torch.stack(
-            [
-                torch.sin(time_mat),
-                torch.cos(time_mat)
-            ]
-        )
         
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
 
@@ -86,16 +75,24 @@ class Pactcs30Dataset(Dataset):
         # dx and dy shouldn't be in keep_raw because they should be normalized
         exclude = keep_raw + ["dx", "dy"]
         feature_vars = [v for v in data_vars if v not in exclude]
+
+        row = dataset.sizes["eta_rho"]
+        col = dataset.sizes["xi_rho"]
         
         def store_tensor(idx):
             datapoint = dataset.isel(time=idx)
-            time = datapoint["time"].item() * self.base_time
-            features = [time]
+
+            nonlocal row, col
+            base_time = torch.tensor.full((row, col), 2*torch.pi*datapoint["time"].item())
+            sin_t = torch.sin(base_time)
+            cos_t = torch.cos(base_time)
+
+            features = [sin_t, cos_t]
 
             for v in feature_vars:
-                features.append(torch.from_numpy(datapoint[v].values).unsqueeze(0))
+                features.append(torch.from_numpy(datapoint[v].values))
 
-            self.data[idx] = torch.cat(features, dim=0)
+            self.data[idx] = torch.cat(features)
 
         jobs = [i for i in range(self.len + self.delta)]
 
@@ -115,7 +112,8 @@ class Pactcs30Dataset(Dataset):
                 feature
             ], dim=0
         )
-        label = self.data[idx + self.delta][2:]
+
+        label = self.data[idx+self.delta][2:]
         return feature, label
 
     def get_mask(self):

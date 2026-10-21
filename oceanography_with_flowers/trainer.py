@@ -19,11 +19,10 @@ class Pactcs30Trainer():
         pred_vars: The variables that are predicted by the model
     """
 
-    def __init__(self, model, train_dl, val_dl, loss_fn, optimizer, scheduler, epochs, device, pred_vars):
+    def __init__(self, model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars):
         self.model = model
-        self.train_dl = train_dl
-        self.val_dl = val_dl
-        self.mask = train_dl.dataset.get_mask()
+        self.dls = dls
+        self.mask = dls[0].dataset.get_mask()
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.scheduler = scheduler
@@ -41,9 +40,9 @@ class Pactcs30Trainer():
 
         self.model.train()
         train_loss = 0
-        no_batches = len(self.train_dl)
+        no_batches = len(self.dls[0])
         
-        for _, (feature, label) in enumerate(self.train_dl):
+        for _, (feature, label) in enumerate(self.dls[0]):
             feature = feature.to(self.device)
             label = label.to(self.device)
             pred = self.model(feature)
@@ -70,10 +69,10 @@ class Pactcs30Trainer():
                 
         self.model.eval()
         val_loss = 0
-        no_batches = len(self.val_dl)
+        no_batches = len(self.dls[1])
     
         with torch.no_grad():
-            for feature, label in self.val_dl:
+            for feature, label in self.dls[1]:
                 feature = feature.to(self.device)
                 label = label.to(self.device)
                 pred = self.model(feature)
@@ -84,15 +83,15 @@ class Pactcs30Trainer():
                 val_loss += loss.item()
         
         if save_plot:
-            feature, label = next(iter(self.val_dl))
+            feature, label = next(iter(self.dls[1]))
             feature = feature.to(self.device)
             pred = self.model(feature)
 
-            pred = self.train_dl.dataset.tensor_to_dataset(pred[0], self.pred_vars)
-            label = self.train_dl.dataset.tensor_to_dataset(label[0], self.pred_vars)
+            pred = self.dls[0].dataset.tensor_to_dataset(pred[0], self.pred_vars)
+            label = self.dls[0].dataset.tensor_to_dataset(label[0], self.pred_vars)
 
-            self.train_dl.dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
-            self.train_dl.dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
+            self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
+            self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
 
         return val_loss / no_batches
 
