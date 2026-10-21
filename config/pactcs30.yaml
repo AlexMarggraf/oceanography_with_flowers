@@ -4,3 +4,4 @@ pred_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_
 split: [2015, 2016, 2017]
 weight_path: "oceanography_with_flowers/weights"
 wandb_path: "oceanography_with_flowers"
+delta: 7

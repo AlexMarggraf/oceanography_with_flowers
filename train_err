@@ -1,11 +1,24 @@
 wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /scicore/home/dokman0000/marggr0000/.netrc.
 wandb: Currently logged in as: alexander-marggraf (alexander-marggraf-university-of-basel) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
 wandb: WARNING Using a boolean value for 'reinit' is deprecated. Use 'return_previous' or 'finish_previous' instead.
-wandb: setting up run 9d4dnhm7
+wandb: setting up run pf86w0ua
 wandb: Tracking run with wandb version 0.30.0
-wandb: Run data is saved locally in oceanography_with_flowers/wandb/run-20261018_131753-9d4dnhm7
+wandb: Run data is saved locally in oceanography_with_flowers/wandb/run-20261019_234416-pf86w0ua
 wandb: Run `wandb offline` to turn off syncing.
-wandb: Syncing run golden-grass-9
+wandb: Syncing run earthy-armadillo-1
 wandb: ⭐️ View project at https://wandb.ai/alexander-marggraf-university-of-basel/fno
-wandb: 🚀 View run at https://wandb.ai/alexander-marggraf-university-of-basel/fno/runs/9d4dnhm7
-[2026-10-18T14:41:18.431] error: *** JOB 27882571 ON sga03 CANCELLED AT 2026-10-18T14:41:18 DUE to SIGNAL Terminated ***
+wandb: 🚀 View run at https://wandb.ai/alexander-marggraf-university-of-basel/fno/runs/pf86w0ua
+wandb: updating run metadata
+wandb: 
+wandb: Run history:
+wandb:      train_loss █▂▂▂▂▂▁▁▁▁▁▁▁▁▁
+wandb: validation_loss █▂▁▁▁▂▂▂▂▂▃▃▃▃▃
+wandb: 
+wandb: Run summary:
+wandb:      train_loss 0.18464
+wandb: validation_loss 0.22633
+wandb: 
+wandb: 🚀 View run earthy-armadillo-1 at: https://wandb.ai/alexander-marggraf-university-of-basel/fno/runs/pf86w0ua
+wandb: ⭐️ View project at: https://wandb.ai/alexander-marggraf-university-of-basel/fno
+wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: oceanography_with_flowers/wandb/run-20261019_234416-pf86w0ua/logs

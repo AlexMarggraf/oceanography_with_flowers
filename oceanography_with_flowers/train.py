@@ -35,6 +35,7 @@ def main(model_path, data_path):
     split = data_cfg.split
     weight_path = data_cfg.weight_path
     wandb_path = data_cfg.wandb_path
+    delta = data_cfg.delta
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs

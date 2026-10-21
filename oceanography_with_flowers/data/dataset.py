@@ -52,6 +52,7 @@ class Pactcs30Dataset(Dataset):
         # -delta because last delta days have no next simulation step
         self.len = dataset.sizes["time"] - self.delta
         self.data = [None] * (self.len + self.delta)
+
         
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
 
@@ -111,6 +112,7 @@ class Pactcs30Dataset(Dataset):
                 feature
             ], dim=0
         )
+
         label = self.data[idx+self.delta][2:]
         return feature, label
 
