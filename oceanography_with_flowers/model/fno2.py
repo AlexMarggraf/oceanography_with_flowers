@@ -12,7 +12,7 @@ class FiLM(nn.Module):
         self.bias = nn.Linear(param_dim, num_channels)
 
     def forward(self, x, param):
-        param = param.unsqueeze(-1)
+        param = param.view(-1, 1)
 
         weight = self.weight(param)
         bias = self.bias(param)
@@ -63,7 +63,7 @@ class FNOBlock(nn.Module):
         if self.use_norm:
             out = self.norm(out)
 
-        if self.use_film:
+        if self.use_film and param is not None:
             out = self.film(out, param)
 
         out = self.activation(out)
@@ -92,7 +92,7 @@ class FNO(nn.Module):
                 in_channels=hidden_channels,
                 out_channels=hidden_channels,
                 modes=modes,
-                para_dim=param_dim,
+                param_dim=param_dim,
                 use_film=use_film,
                 use_norm=use_norm
             )
@@ -110,7 +110,7 @@ class FNO(nn.Module):
         x = self.lift(x)
 
         for b in self.blocks:
-            x = block(x, param)
+            x = b(x, param)
 
         x = self.project(x)
         return x
