@@ -36,6 +36,7 @@ def main(model_path, data_path):
     val_range = data_cfg.val_range
     weight_path = data_cfg.weight_path
     wandb_path = data_cfg.wandb_path
+    delta = data_cfg.delta
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
@@ -48,8 +49,8 @@ def main(model_path, data_path):
     train_timespan = [i for i in range(train_range[0], train_range[1])]
     val_timespan = [i for i in range(val_range[0], val_range[1])]
 
-    train_dl = DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=train_timespan), batch_size=batch_size, shuffle=True)
-    val_dl = DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=val_timespan), batch_size=batch_size, shuffle=True)
+    train_dl = DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=train_timespan), batch_size=batch_size, shuffle=True)
+    val_dl = DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=val_timespan), batch_size=batch_size, shuffle=True)
 
     total_steps = len(train_dl) * epochs
     warmup_steps = int(total_steps * 0.1)
