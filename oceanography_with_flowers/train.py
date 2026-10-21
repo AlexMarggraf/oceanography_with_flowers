@@ -11,7 +11,7 @@ from torch.optim.lr_scheduler import (
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
 
-from oceanography_with_flowers.model.fno import Pactcs30Fno
+from oceanography_with_flowers.model.fno2 import Pactcs30FNO
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
@@ -52,7 +52,7 @@ def main(model_path, data_path):
     dls = []
     for ts in timespans:
         dls.append(
-            DataLoader(Pactcs30Dataset(path, data_vars, delta=7, timespan=ts), batch_size=batch_size, shuffle=True)
+            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts), batch_size=batch_size, shuffle=True)
         )
 
     total_steps = len(dls[0]) * epochs

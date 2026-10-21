@@ -69,19 +69,19 @@ class FNOBlock(nn.Module):
         out = self.activation(out)
         return out
 
-class FNO(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_channels, modes, layers, param_dim=1, use_film=True, use_norm=True):
+class Pactcs30FNO(nn.Module):
+    def __init__(self, start_channels, end_channels, hidden_channels, modes, layers, param_dim=1, use_film=True, use_norm=True):
         super().__init__()
         
-        self.in_channels = in_channels
-        self.out_channels = out_channels
+        self.in_channels = start_channels
+        self.out_channels = end_channels
         self.hidden_channels = hidden_channels
         self.layers = layers
         self.use_film = use_film
         self.param_dim = param_dim
 
         self.lift = ChannelMLP(
-            in_channels=in_channels,
+            in_channels=start_channels,
             out_channels=hidden_channels,
             hidden_channels=2*hidden_channels,
             n_layers=2
@@ -101,7 +101,7 @@ class FNO(nn.Module):
 
         self.project = ChannelMLP(
             in_channels=hidden_channels,
-            out_channels=out_channels,
+            out_channels=end_channels,
             hidden_channels=2*hidden_channels,
             n_layers=2
         )

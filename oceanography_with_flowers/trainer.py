@@ -42,10 +42,11 @@ class Pactcs30Trainer():
         train_loss = 0
         no_batches = len(self.dls[0])
         
-        for _, (feature, label) in enumerate(self.dls[0]):
+        for _, (feature, time, label) in enumerate(self.dls[0]):
             feature = feature.to(self.device)
+            time = time.to(self.device)
             label = label.to(self.device)
-            pred = self.model(feature)
+            pred = self.model(feature, param=time)
             v_mask = self.mask.expand_as(pred)
 
             # loss is masked to ignore regions not in ocean
@@ -72,10 +73,11 @@ class Pactcs30Trainer():
         no_batches = len(self.dls[1])
     
         with torch.no_grad():
-            for feature, label in self.dls[1]:
+            for feature, time, label in self.dls[1]:
                 feature = feature.to(self.device)
+                time = time.to(self.device)
                 label = label.to(self.device)
-                pred = self.model(feature)
+                pred = self.model(feature, param=time)
                 v_mask = self.mask.expand_as(pred)
 
                 # loss is masked to ignore regions not in ocean

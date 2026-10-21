@@ -3,7 +3,7 @@ epochs: 10
 batch_size: 8
 
 model:
-  _target_: __main__.Pactcs30Fno
+  _target_: __main__.Pactcs30FNO
   start_channels: 17
   end_channels: 10
   hidden_channels: 128
