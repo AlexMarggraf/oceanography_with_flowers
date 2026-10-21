@@ -82,7 +82,7 @@ class Pactcs30Dataset(Dataset):
             for v in feature_vars:
                 features.append(torch.from_numpy(datapoint[v].values))
 
-            self.data[idx] = (torch.stack(features), torch.from_numpy(datapoint["time"]))
+            self.data[idx] = (torch.stack(features), torch.from_numpy(datapoint["time"].item()))
 
         jobs = [i for i in range(self.len + self.delta)]
 
