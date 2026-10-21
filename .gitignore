@@ -10,7 +10,7 @@ wheels/
 .venv
 
 # weird ahh checkpoint folders
-*.ipynb_checkpoints
+.ipynb_checkpoints
 
 # weights
 oceanography_with_flowers/weights/
@@ -22,5 +22,5 @@ oceanography_with_flowers/wandb/
 oceanography_with_flowers/img/
 
 #slurm
-err
-out
+*.err
+*.out
