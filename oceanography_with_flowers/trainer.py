@@ -42,7 +42,7 @@ class Pactcs30Trainer():
         train_loss = 0
         no_batches = len(self.dls[0])
         
-        for _, (feature, time, label) in enumerate(self.dls[0]):
+        for i, (feature, time, label) in enumerate(self.dls[0]):
             feature = feature.to(self.device)
             time = time.to(self.device)
             label = label.to(self.device)
@@ -85,15 +85,17 @@ class Pactcs30Trainer():
                 val_loss += loss.item()
         
         if save_plot:
-            feature, label = next(iter(self.dls[1]))
-            feature = feature.to(self.device)
-            pred = self.model(feature)
+            with torch.no_grad():
+                feature, time, label = next(iter(self.dls[1]))
+                feature = feature.to(self.device)
+                time = time.to(self.device)
+                pred = self.model(feature, time)
 
-            pred = self.dls[0].dataset.tensor_to_dataset(pred[0], self.pred_vars)
-            label = self.dls[0].dataset.tensor_to_dataset(label[0], self.pred_vars)
+                pred = self.dls[0].dataset.tensor_to_dataset(pred[0].detach().cpu(), self.pred_vars)
+                label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
 
-            self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
-            self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
+                self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
+                self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
 
         return val_loss / no_batches
 

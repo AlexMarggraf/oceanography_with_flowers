@@ -34,13 +34,14 @@ class FNOBlock(nn.Module):
 
         self.skip = skip_connection(
             in_features=in_channels,
-            out_features=out_channels
+            out_features=out_channels,
+            skip_type="linear"
         )
 
         self.spectral_conv = SpectralConv(
             in_channels=in_channels,
             out_channels=out_channels,
-            n_modes=modes
+            n_modes=(modes, modes)
         )
 
         if use_film:

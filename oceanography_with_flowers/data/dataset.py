@@ -103,7 +103,7 @@ class Pactcs30Dataset(Dataset):
             ], dim=0
         )
 
-        label = self.data[idx+self.delta][2:]
+        label, _ = self.data[idx+self.delta]
         return feature, time, label
 
     def get_mask(self):
@@ -233,7 +233,7 @@ class Pactcs30Dataset(Dataset):
             xarray.Dataset: Tensor represented as dataset
         """
     
-        tensor_data = tensor.detach().cpu().numpy()
+        tensor_data = tensor.numpy()
         data_array = []
     
         for t in tensor_data:
