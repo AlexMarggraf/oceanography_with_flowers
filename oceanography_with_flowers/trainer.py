@@ -111,8 +111,8 @@ class Pactcs30Trainer():
                 pred = self.dls[0].dataset.tensor_to_dataset(pred[0].detach().cpu(), self.pred_vars)
                 label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
 
-                self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
-                self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
+                norms = self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
+                self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars, norms=norms, return_scale=False)
 
         return val_loss / no_batches
 
