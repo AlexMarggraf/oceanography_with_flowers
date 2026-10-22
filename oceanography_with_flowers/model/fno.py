@@ -20,6 +20,7 @@ class Pactcs30FNO(nn.Module):
             out_channels=hidden_channels,
             n_modes=(modes, modes),
             n_layers=layers,
+            norm="instance_norm"
         )
         self.lift = nn.Conv2d(start_channels, hidden_channels, 1)
         self.proj = nn.Conv2d(hidden_channels, end_channels, 1)

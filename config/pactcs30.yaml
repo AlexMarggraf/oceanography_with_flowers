@@ -5,4 +5,4 @@ split: [2010, 2011, 2012]
 weight_path: "oceanography_with_flowers/weights"
 wandb_path: "oceanography_with_flowers"
 delta: 7
-use_sin_enc: False
+use_sin_enc: True
