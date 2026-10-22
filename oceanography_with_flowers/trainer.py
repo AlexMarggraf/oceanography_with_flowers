@@ -45,16 +45,16 @@ class Pactcs30Trainer():
         
         for data in self.dls[0]:
             if self.use_sin_enc:
+                feature, label = data
+                feature = feature.to(self.device)
+                label = label.to(self.device)
+                pred = self.model(feature) 
+            else:
                 feature, time, label = data
                 feature = feature.to(self.device)
                 time = time.to(self.device)
                 label = label.to(self.device)
                 pred = self.model(feature, param=time)
-            else:
-                feature, label = data
-                feature = feature.to(self.device)
-                label = label.to(self.device)
-                pred = self.model(feature) 
 
             v_mask = self.mask.expand_as(pred)
 
@@ -84,17 +84,17 @@ class Pactcs30Trainer():
         with torch.no_grad():
             for data in self.dls[1]:
                 if self.use_sin_enc:
+                    feature, label = data
+                    feature = feature.to(self.device)
+                    label = label.to(self.device)
+                    pred = self.model(feature) 
+                else:
                     feature, time, label = data
                     feature = feature.to(self.device)
                     time = time.to(self.device)
                     label = label.to(self.device)
                     pred = self.model(feature, param=time)
-                else:
-                    feature, label = data
-                    feature = feature.to(self.device)
-                    label = label.to(self.device)
-                    pred = self.model(feature) 
-                    
+
                 v_mask = self.mask.expand_as(pred)
 
                 # loss is masked to ignore regions not in ocean
