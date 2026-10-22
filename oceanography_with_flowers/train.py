@@ -11,7 +11,7 @@ from torch.optim.lr_scheduler import (
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
 
-from oceanography_with_flowers.model.fno import Pactcs30FNO
+from oceanography_with_flowers.model.fno2 import Pactcs30FNO
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
@@ -42,8 +42,11 @@ def main(model_path, data_path):
     epochs = model_cfg.epochs
     project_name = model_cfg.project_name
 
-    #model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
-    model = instantiate(model_cfg.model).to(device)
+    model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
+    #model = instantiate(model_cfg.model).to(device)
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total Trainable Parameters: {total_params:,}", flush=True)
+
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
 
@@ -54,7 +57,7 @@ def main(model_path, data_path):
     dls = []
     for ts in timespans:
         dls.append(
-            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=True)
+            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=False)
         )
 
     total_steps = len(dls[0]) * epochs

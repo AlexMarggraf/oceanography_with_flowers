@@ -1,10 +1,10 @@
 project_name: "fno"
 epochs: 10
-batch_size: 32
+batch_size: 4
 
 model:
   _target_: __main__.Pactcs30FNO
-  start_channels: 17
+  start_channels: 15
   end_channels: 10
   hidden_channels: 96
   modes: 16
