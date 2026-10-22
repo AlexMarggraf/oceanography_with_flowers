@@ -1,7 +1,7 @@
 from torch import nn
 from neuralop.layers.fno_block import FNOBlocks
 
-class Pactcs30Fno(nn.Module):
+class Pactcs30FNO(nn.Module):
     """
     FNO architecture for predicting pactcs30 data.
 
