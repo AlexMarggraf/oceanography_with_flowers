@@ -7,8 +7,8 @@
 #SBATCH --time=00:30:00        #This is the time that your task will run
 #SBATCH --qos=a100-30min      #You will run in this queue
 #SBATCH --partition=a100
-#SBATCH --gres=gpu:1
 #SBATCH --ntasks=1
+#SBATCH --gres=gpu:1
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=train.out    #These are the STDOUT and STDERR files
