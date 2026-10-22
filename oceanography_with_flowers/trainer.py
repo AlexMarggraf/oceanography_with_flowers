@@ -144,6 +144,10 @@ class Pactcs30Trainer():
                 val_loss = self.validate_model(img_path=f"{wandb_path}/img/run_{run.id}/epoch_{epoch}", save_plot=True)
             else:
                 val_loss = self.validate_model()
+
+            if epoch == 0:
+                max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                print(f"Max GPU Memory Allocated: {max_mem_gb:.2f} GB", flush=True)
             
             wandb.log({
                 "train_loss": train_loss,
