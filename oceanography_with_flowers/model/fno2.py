@@ -47,7 +47,7 @@ class FNOBlock(nn.Module):
         self.channel_mlp = ChannelMLP(
             in_channels=out_channels,
             out_channels=out_channels,
-            n_layers=2
+            n_layers=1
         )
 
         if use_film:
