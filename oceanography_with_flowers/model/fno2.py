@@ -44,6 +44,12 @@ class FNOBlock(nn.Module):
             n_modes=(modes, modes)
         )
 
+        self.channel_mlp = ChannelMLP(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            n_layers=2
+        )
+
         if use_film:
             self.film = FiLM(
                 num_channels=out_channels,
@@ -59,13 +65,23 @@ class FNOBlock(nn.Module):
         x_spec = self.spectral_conv(x)
         x_skip = self.skip(x)
 
-        out = x_spec + x_skip
+        mid = x_spec + x_skip
+
+        if self.use_norm:
+            mid = self.norm(mid)
+
+        if self.use_film and param is not None:
+            mid = self.film(mid, param)
+
+        mid = self.activation(mid)
+
+        mid_mlp = self.channel_mlp(mid)
+        mid_skip = self.skip(mid)
+
+        out = mid_mlp + mid_skip
 
         if self.use_norm:
             out = self.norm(out)
-
-        if self.use_film and param is not None:
-            out = self.film(out, param)
 
         out = self.activation(out)
         return out
