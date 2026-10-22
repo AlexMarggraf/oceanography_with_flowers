@@ -81,6 +81,9 @@ class FNOBlock(nn.Module):
         if self.use_norm:
             out = self.norm(out)
 
+	if self.use_film and param is not None:
+	    out = self.film(out, param)
+
         out = self.activation(out)
         return out
 
