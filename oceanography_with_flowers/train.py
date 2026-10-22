@@ -11,7 +11,7 @@ from torch.optim.lr_scheduler import (
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
 
-from oceanography_with_flowers.model.fno2 import Pactcs30FNO
+from oceanography_with_flowers.model.fno import Pactcs30FNO
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
@@ -42,7 +42,8 @@ def main(model_path, data_path):
     epochs = model_cfg.epochs
     project_name = model_cfg.project_name
 
-    model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
+    #model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
+    model = instantiate(model_cfg.model).to(device)
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
 

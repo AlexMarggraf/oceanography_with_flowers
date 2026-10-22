@@ -67,9 +67,6 @@ class Pactcs30Trainer():
             self.scheduler.step()
             self.optimizer.zero_grad()
 
-            current_lr = self.optimizer.param_groups[0]['lr']
-            wandb.log({"lr": current_lr})
-
         return train_loss / no_batches
     
     def validate_model(self, img_path=None, save_plot=False):
