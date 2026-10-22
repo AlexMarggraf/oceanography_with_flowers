@@ -1,5 +1,6 @@
 from torch import nn
 from neuralop.layers.fno_block import FNOBlocks
+from neuralop.layers.channel_mlp import ChannelMLP
 
 class Pactcs30FNO(nn.Module):
     """
@@ -22,11 +23,23 @@ class Pactcs30FNO(nn.Module):
             n_layers=layers,
             norm="instance_norm"
         )
-        self.lift = nn.Conv2d(start_channels, hidden_channels, 1)
-        self.proj = nn.Conv2d(hidden_channels, end_channels, 1)
+
+        self.lift = ChannelMLP(
+            in_channels=start_channels,
+            out_channels=hidden_channels,
+            hidden_channels=2*hidden_channels,
+            n_layers=2
+        )
+
+        self.project = ChannelMLP(
+            in_channels=hidden_channels,
+            out_channels=end_channels,
+            hidden_channels=2*hidden_channels,
+            n_layers=2
+        )
 
     def forward(self, x):
         x = self.lift(x)
         x = self.fno(x)
-        x = self.proj(x)
+        x = self.project(x)
         return x
