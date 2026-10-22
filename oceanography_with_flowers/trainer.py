@@ -67,6 +67,9 @@ class Pactcs30Trainer():
             self.scheduler.step()
             self.optimizer.zero_grad()
 
+            current_lr = self.optimizer.param_groups[0]['lr']
+            wandb.log({"lr": current_lr})
+
         return train_loss / no_batches
     
     def validate_model(self, img_path=None, save_plot=False):
@@ -103,16 +106,21 @@ class Pactcs30Trainer():
         
         if save_plot:
             with torch.no_grad():
-                feature, time, label = next(iter(self.dls[1]))
-                feature = feature.to(self.device)
-                time = time.to(self.device)
-                pred = self.model(feature, time)
+                if self.use_sin_enc:
+                    feature, label = next(iter(self.dls[1]))
+                    feature = feature.to(self.device)
+                    pred = self.model(feature)
+                else:
+                    feature, time, label = next(iter(self.dls[1]))
+                    feature = feature.to(self.device)
+                    time = time.to(self.device)
+                    pred = self.model(feature, time)
 
                 pred = self.dls[0].dataset.tensor_to_dataset(pred[0].detach().cpu(), self.pred_vars)
                 label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
 
-                norms = self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
-                self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars, norms=norms, return_scale=False)
+                self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars)
+                self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars)
 
         return val_loss / no_batches
 

@@ -282,7 +282,7 @@ class Pactcs30Dataset(Dataset):
     
         return dataset
     
-    def plot_dataset(self, dataset, path, data_vars, norms=None, return_scale=True):
+    def plot_dataset(self, dataset, path, data_vars):
         """
         Plot pactcs30 dataset.
 
@@ -292,13 +292,10 @@ class Pactcs30Dataset(Dataset):
             data_vars ([str]): Data variables to be visualized
         """
 
-        if return_scale:
-            norm_lst = []
-
         create_dir = Path(path)
         create_dir.mkdir(parents=True, exist_ok=True)
 
-        for i ,v in enumerate(data_vars):
+        for v in data_vars:
             fig, ax = plt.subplots(figsize=(8, 6))
             
             dataset[v].cf.plot(
@@ -309,16 +306,9 @@ class Pactcs30Dataset(Dataset):
                 center=False,
                 cmap="cmo.thermal",
             )
-            if return_scale:
-                norm_lst.append(ax.norm)
-            else:
-                ax.set_norm(norms[i])
 
             ax.set_title(f"{v}")
             fig.savefig(create_dir / f"{v}.png", dpi=300, bbox_inches="tight")
             
             # Close the figure so the next iteration starts with a fresh canvas
             plt.close(fig)
-
-        if return_scale:
-            return norm_lst    
