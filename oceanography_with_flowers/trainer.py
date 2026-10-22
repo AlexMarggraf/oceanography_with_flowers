@@ -19,7 +19,7 @@ class Pactcs30Trainer():
         pred_vars: The variables that are predicted by the model
     """
 
-    def __init__(self, model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars):
+    def __init__(self, model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars, use_sin_enc=False):
         self.model = model
         self.dls = dls
         self.mask = dls[0].dataset.get_mask()
@@ -29,6 +29,7 @@ class Pactcs30Trainer():
         self.epochs = epochs
         self.device = device
         self.pred_vars = pred_vars
+        self.use_sin_enc = use_sin_enc
     
     def train_model(self):
         """
@@ -42,11 +43,19 @@ class Pactcs30Trainer():
         train_loss = 0
         no_batches = len(self.dls[0])
         
-        for i, (feature, time, label) in enumerate(self.dls[0]):
-            feature = feature.to(self.device)
-            time = time.to(self.device)
-            label = label.to(self.device)
-            pred = self.model(feature, param=time)
+        for data in self.dls[0]:
+            if self.use_sin_enc:
+                feature, time, label = data
+                feature = feature.to(self.device)
+                time = time.to(self.device)
+                label = label.to(self.device)
+                pred = self.model(feature, param=time)
+            else:
+                feature, label = data
+                feature = feature.to(self.device)
+                label = label.to(self.device)
+                pred = self.model(feature) 
+
             v_mask = self.mask.expand_as(pred)
 
             # loss is masked to ignore regions not in ocean
@@ -73,11 +82,19 @@ class Pactcs30Trainer():
         no_batches = len(self.dls[1])
     
         with torch.no_grad():
-            for feature, time, label in self.dls[1]:
-                feature = feature.to(self.device)
-                time = time.to(self.device)
-                label = label.to(self.device)
-                pred = self.model(feature, param=time)
+            for data in self.dls[1]:
+                if self.use_sin_enc:
+                    feature, time, label = data
+                    feature = feature.to(self.device)
+                    time = time.to(self.device)
+                    label = label.to(self.device)
+                    pred = self.model(feature, param=time)
+                else:
+                    feature, label = data
+                    feature = feature.to(self.device)
+                    label = label.to(self.device)
+                    pred = self.model(feature) 
+                    
                 v_mask = self.mask.expand_as(pred)
 
                 # loss is masked to ignore regions not in ocean

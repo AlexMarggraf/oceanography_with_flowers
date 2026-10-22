@@ -36,23 +36,24 @@ def main(model_path, data_path):
     weight_path = data_cfg.weight_path
     wandb_path = data_cfg.wandb_path
     delta = data_cfg.delta
+    use_sin_enc = data_cfg.use_sin_enc
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
     project_name = model_cfg.project_name
 
-    model = instantiate(model_cfg.model).to(device)
+    model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
 
     timespans = []
     for i in range(len(split) - 1):
-        timespans.append([i for i in range(split[0], split[1])])
+        timespans.append([j for j in range(split[i], split[i+1])])
 
     dls = []
     for ts in timespans:
         dls.append(
-            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts), batch_size=batch_size, shuffle=True)
+            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=True)
         )
 
     total_steps = len(dls[0]) * epochs
@@ -78,7 +79,7 @@ def main(model_path, data_path):
 
     config = OmegaConf.to_container(model_cfg, resolve=True)
         
-    trainer = Pactcs30Trainer(model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars)
+    trainer = Pactcs30Trainer(model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars, use_sin_enc=use_sin_enc)
     trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":

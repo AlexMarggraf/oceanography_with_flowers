@@ -21,10 +21,11 @@ class Pactcs30Dataset(Dataset):
         depth (int): Amount of depth levels
     """
 
-    def __init__(self, path, data_vars, delta=7, keep_raw=["mask_rho", "angle"], timespan=[2010], depth=1):
+    def __init__(self, path, data_vars, delta=7, keep_raw=["mask_rho", "angle"], timespan=[2010], use_sin_enc=False, depth=1):
         self.data = None
         self.len = 0
         self.delta = delta
+        self.use_sin_enc = use_sin_enc
 
         self.mean = dict()
         self.std = dict()
@@ -74,10 +75,20 @@ class Pactcs30Dataset(Dataset):
         # dx and dy shouldn't be in keep_raw because they should be normalized
         exclude = keep_raw + ["dx", "dy"]
         feature_vars = [v for v in data_vars if v not in exclude]
+
+        row = dataset.sizes["eta_rho"]
+        col = dataset.sizes["xi_rho"]
         
-        def store_tensor(idx):
+        def store_tensor(idx, row=row, col=col):
             datapoint = dataset.isel(time=idx)
             features = []
+
+            if self.use_sin_enc:
+                base_time = torch.full((row, col), 2*torch.pi*datapoint["time"].item())
+                sin_t = torch.sin(base_time)
+                cos_t = torch.cos(base_time)
+
+                features = [sin_t, cos_t]
 
             for v in feature_vars:
                 features.append(torch.from_numpy(datapoint[v].values))
@@ -94,17 +105,31 @@ class Pactcs30Dataset(Dataset):
         return self.len
         
     def __getitem__(self, idx):
-        feature, time = self.data[idx]
-        feature = torch.cat(
-            [
-                self.coast_mask,
-                self.positional,
-                feature
-            ], dim=0
-        )
+        if self.use_sin_enc:
+            feature = self.data[idx]
+            feature = torch.cat(
+                [
+                    self.coast_mask,
+                    self.positional,
+                    feature
+                ], dim=0
+            )
 
-        label, _ = self.data[idx+self.delta]
-        return feature, time, label
+            # first two entries are time channels which we dont need
+            label = self.data[idx+self.delta][2:]
+            return feature, label
+        else:
+            feature, time = self.data[idx]
+            feature = torch.cat(
+                [
+                    self.coast_mask,
+                    self.positional,
+                    feature
+                ], dim=0
+            )
+
+            label, _ = self.data[idx+self.delta]
+            return feature, time, label
 
     def get_mask(self):
         return self.coast_mask.bool()
