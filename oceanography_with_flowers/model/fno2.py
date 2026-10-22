@@ -74,11 +74,9 @@ class FNOBlock(nn.Module):
             mid = self.film(mid, param)
 
         mid = self.activation(mid)
-
         mid_mlp = self.channel_mlp(mid)
-        mid_skip = self.skip(mid)
 
-        out = mid_mlp + mid_skip
+        out = mid_mlp + x_skip
 
         if self.use_norm:
             out = self.norm(out)
