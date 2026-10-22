@@ -22,23 +22,11 @@ class Pactcs30Dataset(Dataset):
     """
 
     def __init__(self, path, data_vars, delta=7, keep_raw=["mask_rho", "angle"], timespan=[2010], use_sin_enc=False, depth=1):
-        self.data = None
-        self.len = 0
         self.delta = delta
         self.use_sin_enc = use_sin_enc
 
         self.mean = dict()
         self.std = dict()
-
-        self.base_time = None
-        self.coast_mask = None
-        self.positional = None
-
-        self.mask_rho = None
-        self.eta_rho = None
-        self.xi_rho = None
-        self.lat_rho = None
-        self.lon_rho = None
 
         dataset = self.load_pactcs30(path, timespan)
         dataset = self.clean_pactcs30(dataset, data_vars, keep_raw)
@@ -199,7 +187,7 @@ class Pactcs30Dataset(Dataset):
         u_rho = 0.5 * (u_first + u_last)
         u_rho = u_rho.pad(xi_u=(1,1), mode="edge")
         u_rho = u_rho.rename({"xi_u" : "xi_rho"})
-        u_rho = u_rho.assign_coords(xi_rho=dataset.xi_rho)
+        u_rho = u_rho.assign_coords(xi_rho=self.xi_rho)
     
         # linear interploation to go from v to rho grid
         v_first = dataset["v"].isel(eta_v=slice(0,-1))
@@ -209,7 +197,7 @@ class Pactcs30Dataset(Dataset):
         v_rho = 0.5 * (v_first + v_last)
         v_rho = v_rho.pad(eta_v=(1,1), mode="edge")
         v_rho = v_rho.rename({"eta_v" : "eta_rho"})
-        v_rho = v_rho.assign_coords(eta_rho=dataset.eta_rho)
+        v_rho = v_rho.assign_coords(eta_rho=self.eta_rho)
     
         var_norm = [v for v in data_vars if v not in keep_raw]
     

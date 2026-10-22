@@ -48,7 +48,7 @@ def main(model_path, data_path):
 
     timespans = []
     for i in range(len(split) - 1):
-        timespans.append([j for j in range(split[i], split[i+1])])
+        timespans.append([year for year in range(split[i], split[i+1])])
 
     dls = []
     for ts in timespans:
