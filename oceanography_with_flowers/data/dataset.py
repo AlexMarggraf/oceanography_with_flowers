@@ -81,7 +81,10 @@ class Pactcs30Dataset(Dataset):
             for v in feature_vars:
                 features.append(torch.from_numpy(datapoint[v].values))
 
-            self.data[idx] = (torch.stack(features), torch.tensor(datapoint["time"].item()))
+            if self.use_sin_enc:
+                self.data[idx] = torch.stack(features)
+            else:
+                self.data[idx] = (torch.stack(features), torch.tensor(datapoint["time"].item()))
 
         jobs = [i for i in range(self.len + self.delta)]
 
@@ -178,6 +181,9 @@ class Pactcs30Dataset(Dataset):
             (dataset["time"].dt.dayofyear.values - 1) / 365,
             (dataset["time"].dt.dayofyear.values - 1) / 364
         )
+
+        dataset["NO3"] = dataset["NO3"].clip(min=0)
+        dataset["TOT_CHL"] = dataset["TOT_CHL"].clip(min=0)
         
         # linear interpolation to go from u to rho grid
         u_first = dataset["u"].isel(xi_u=slice(0,-1))
@@ -307,7 +313,7 @@ class Pactcs30Dataset(Dataset):
                 norm_lst.append(ax.norm)
             else:
                 ax.set_norm(norms[i])
-                
+
             ax.set_title(f"{v}")
             fig.savefig(create_dir / f"{v}.png", dpi=300, bbox_inches="tight")
             
