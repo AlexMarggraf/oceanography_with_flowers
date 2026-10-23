@@ -21,7 +21,8 @@ class Pactcs30FNO(nn.Module):
             out_channels=hidden_channels,
             n_modes=(modes, modes),
             n_layers=layers,
-            norm="instance_norm"
+            norm="ada_in"
+            ada_in_features=1
         )
 
         self.lift = ChannelMLP(
@@ -38,8 +39,9 @@ class Pactcs30FNO(nn.Module):
             n_layers=2
         )
 
-    def forward(self, x):
+    def forward(self, x, param):
         x = self.lift(x)
+        self.fno.set_ada_in_embeddings(param)
         x = self.fno(x)
         x = self.project(x)
         return x

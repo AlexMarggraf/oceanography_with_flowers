@@ -57,7 +57,7 @@ def main(model_path, data_path):
     dls = []
     for ts in timespans:
         dls.append(
-            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=True)
+            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=False)
         )
 
     total_steps = len(dls[0]) * epochs

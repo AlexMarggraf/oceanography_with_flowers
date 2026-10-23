@@ -46,14 +46,14 @@ class Pactcs30Trainer():
         for data in self.dls[0]:
             if self.use_sin_enc:
                 feature, label = data
-                feature = feature.to(self.device)
-                label = label.to(self.device)
+                feature = feature.to(self.device, non_blocking=True)
+                label = label.to(self.device, non_blocking=True)
                 pred = self.model(feature) 
             else:
                 feature, time, label = data
-                feature = feature.to(self.device)
+                feature = feature.to(self.device, non_blocking=True)
                 time = time.to(self.device)
-                label = label.to(self.device)
+                label = label.to(self.device, non_blocking=True)
                 pred = self.model(feature, param=time)
 
             v_mask = self.mask.expand_as(pred)
@@ -65,7 +65,7 @@ class Pactcs30Trainer():
             
             self.optimizer.step()
             self.scheduler.step()
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
 
         return train_loss / no_batches
     
@@ -85,14 +85,14 @@ class Pactcs30Trainer():
             for data in self.dls[1]:
                 if self.use_sin_enc:
                     feature, label = data
-                    feature = feature.to(self.device)
-                    label = label.to(self.device)
+                    feature = feature.to(self.device, non_blocking=True)
+                    label = label.to(self.device, non_blocking=True)
                     pred = self.model(feature) 
                 else:
                     feature, time, label = data
-                    feature = feature.to(self.device)
+                    feature = feature.to(self.device, non_blocking=True)
                     time = time.to(self.device)
-                    label = label.to(self.device)
+                    label = label.to(self.device, non_blocking=True)
                     pred = self.model(feature, param=time)
 
                 v_mask = self.mask.expand_as(pred)
