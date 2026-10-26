@@ -25,12 +25,17 @@ class Pactcs30Dataset(Dataset):
     def __init__(self, path, data_vars, delta=7, keep_raw=["mask_rho", "angle"], timespan=[2010], use_sin_enc=False, depth=1):
         self.delta = delta
         self.use_sin_enc = use_sin_enc
+        logging.info(f"delta and encoding: {delta} / {"sinusoidal" if use_sin_enc else "FiLM"}")
 
         self.mean = dict()
         self.std = dict()
 
         dataset = self.load_pactcs30(path, timespan)
         dataset = self.clean_pactcs30(dataset, data_vars, keep_raw)
+        logging.info(f"data variables: {list(dataset.data_vars)}")
+        logging.info(f"data dimensions: {list(dataset.dims)}")
+        logging.info(f"dataset shape: {dataset.dims}")
+        logging.info(f"types of data arrays: {dataset.dtypes}")
 
         # stored for translation from tensor to dataset
         self.mask_rho = dataset["mask_rho"]
@@ -44,6 +49,7 @@ class Pactcs30Dataset(Dataset):
         self.data = [None] * (self.len + self.delta)
 
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
+        logging.info(f"coast mask shape: {self.coast_mask.shape}")
 
         # positional encoding because data is on a curvilinear grid
         h_xi = torch.from_numpy(dataset["dx"].values)
@@ -60,6 +66,7 @@ class Pactcs30Dataset(Dataset):
                 h_eta * cos_angle,
             ]
         )
+        logging.info(f"positional encodings shape: {self.positional.shape}")
 
         # dx and dy shouldn't be in keep_raw because they should be normalized
         exclude = keep_raw + ["dx", "dy"]
@@ -77,6 +84,9 @@ class Pactcs30Dataset(Dataset):
                 sin_t = torch.sin(base_time)
                 cos_t = torch.cos(base_time)
 
+                if idx == 0:
+                    logging.info(f"time encoding shape: {base_time.shape}")
+
                 features = [sin_t, cos_t]
 
             for v in feature_vars:
@@ -84,8 +94,12 @@ class Pactcs30Dataset(Dataset):
 
             if self.use_sin_enc:
                 self.data[idx] = torch.stack(features)
+                if idx == 0:
+                    logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
             else:
                 self.data[idx] = (torch.stack(features), torch.tensor(datapoint["time"].item()))
+                if idx == 0:
+                    logging.info(f"First entry of dataset shape: {self.data[idx][0].shape} / {self.data[idx][1].shape}")
 
         jobs = [i for i in range(self.len + self.delta)]
 
@@ -182,9 +196,11 @@ class Pactcs30Dataset(Dataset):
             (dataset["time"].dt.dayofyear.values - 1) / 365,
             (dataset["time"].dt.dayofyear.values - 1) / 364
         )
+        logging.info(f"first and last time value {dataset["time"][0].values} / {dataset["time"][-1].values}")
 
         dataset["NO3"] = dataset["NO3"].clip(min=0)
         dataset["TOT_CHL"] = dataset["TOT_CHL"].clip(min=0)
+        logging.info(f"min NO3 and TOT_CHL values: {np.nanmin(dataset["NO3"])} / {np.nanmin(dataset["TOT_CHL"])}")
         
         # linear interpolation to go from u to rho grid
         u_first = dataset["u"].isel(xi_u=slice(0,-1))
@@ -195,6 +211,7 @@ class Pactcs30Dataset(Dataset):
         u_rho = u_rho.pad(xi_u=(1,1), mode="edge")
         u_rho = u_rho.rename({"xi_u" : "xi_rho"})
         u_rho = u_rho.assign_coords(xi_rho=dataset["xi_rho"])
+        logging.info(f"interpolated u shape: {u_rho.shape}")
     
         # linear interploation to go from v to rho grid
         v_first = dataset["v"].isel(eta_v=slice(0,-1))
@@ -205,6 +222,7 @@ class Pactcs30Dataset(Dataset):
         v_rho = v_rho.pad(eta_v=(1,1), mode="edge")
         v_rho = v_rho.rename({"eta_v" : "eta_rho"})
         v_rho = v_rho.assign_coords(eta_rho=dataset["eta_rho"])
+        logging.info(f"interpolated v shape: {v_rho.shape}")
     
         var_norm = [v for v in data_vars if v not in keep_raw]
     
@@ -268,6 +286,9 @@ class Pactcs30Dataset(Dataset):
                 )
             )
 
+        if len(pred_vars) != len(data_array):
+            logging.error(f"variable list of length {len(pred_vars)} and tensor of length {len(data_array)} cannot be combined into dataset!")
+
         dataset = xr.Dataset(dict(zip(pred_vars, data_array)))
         dataset["mask_rho"] = self.mask_rho
         
@@ -283,33 +304,63 @@ class Pactcs30Dataset(Dataset):
     
         return dataset
     
-    def plot_dataset(self, dataset, path, data_vars):
-        """
-        Plot pactcs30 dataset.
+    def plot_dataset(
+        self,
+        dataset,
+        path,
+        data_vars,
+        scales=None,
+        return_scales=False,
+    ):
+        """Plot pactcs30 dataset with consistent color scaling.
 
         Args:
-            dataset (xarray.Dataset): Dataset to be visualized
-            path (str): Where to store data
-            data_vars ([str]): Data variables to be visualized
-        """
+            dataset (xarray.Dataset): Dataset to be visualized.
+            path (str | Path): Where to store data.
+            data_vars (list[str]): Data variables to be visualized.
+            scales (dict, optional): Mapping of {var_name: (vmin, vmax)}.
+                If provided, these limits override automatic scaling.
+            return_scales (bool): If True, computes and returns the dictionary
+                of scales used across all variables. Defaults to False.
 
+        Returns:
+            dict: {var_name: (vmin, vmax)} if return_scales is True, else None.
+        """
         create_dir = Path(path)
         create_dir.mkdir(parents=True, exist_ok=True)
 
+        if return_scales:
+            used_scales = dict()
+
         for v in data_vars:
             fig, ax = plt.subplots(figsize=(8, 6))
-            
-            dataset[v].cf.plot(
-                ax=ax,
-                x="longitude",
-                y="latitude",
-                robust=True,
-                center=False,
-                cmap="cmo.thermal",
-            )
+            da = dataset[v]
+
+            if scales is not None and v in scales:
+                vmin, vmax = scales[v]
+            else:
+                vmin, vmax = np.nanpercentile(da, 2), np.nanpercentile(da, 98)
+
+            if return_scales:
+                used_scales[v] = (vmin, vmax)
+
+            # 2. Plot using computed or passed scales
+            plot_kwargs = {
+                "ax": ax,
+                "x": "longitude",
+                "y": "latitude",
+                "center": False,
+                "cmap": "cmo.thermal",
+                "robust": True,
+                "vmin": vmin,
+                "vmax": vmax
+            }
+
+            da.cf.plot(**plot_kwargs)
 
             ax.set_title(f"{v}")
             fig.savefig(create_dir / f"{v}.png", dpi=300, bbox_inches="tight")
-            
-            # Close the figure so the next iteration starts with a fresh canvas
             plt.close(fig)
+
+        if return_scales:
+            return used_scales

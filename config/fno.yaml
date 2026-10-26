@@ -1,12 +1,12 @@
-project_name: "fno"
+project_name: "fno_rollout"
 epochs: 15
 batch_size: 4
 
 model:
   _target_: __main__.Pactcs30FNO
-  start_channels: 15
+  start_channels: 17
   end_channels: 10
-  hidden_channels: 96
+  hidden_channels: 180
   modes: 16
   layers: 4
 

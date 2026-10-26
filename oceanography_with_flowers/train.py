@@ -1,4 +1,6 @@
 import argparse
+import sys
+import logging
 import torch
 from torch import nn
 from torch.optim import AdamW
@@ -15,6 +17,14 @@ from oceanography_with_flowers.model.fno import Pactcs30FNO
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
+class RealTimeStreamHandler(logging.StreamHandler):
+    def __init__(self, stream=None):
+        super().__init__(stream=stream or sys.stdout)
+
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+
 def main(model_path, data_path):
     """
     Build model from config file, load metadata from config file, and start training loop.
@@ -28,6 +38,8 @@ def main(model_path, data_path):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cfg = OmegaConf.load(model_path)
     data_cfg = OmegaConf.load(data_path)
+    logging.info(f"model config:\n{OmegaConf.to_yaml(model_cfg)}")
+    logging.info(f"data config:\n{OmegaConf.to_yaml(data_cfg)}")
 
     path = data_cfg.path
     data_vars = data_cfg.data_vars
@@ -44,8 +56,9 @@ def main(model_path, data_path):
 
     #model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
     model = instantiate(model_cfg.model).to(device)
-    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total Trainable Parameters: {total_params:,}", flush=True)
+    total_params = sum(p.numel() for p in model.parameters())
+    logging.info(f"model architecure:\n{model}")
+    logging.info(f"total parameters: {total_params:,}")
 
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
@@ -55,14 +68,16 @@ def main(model_path, data_path):
         timespans.append([year for year in range(split[i], split[i+1])])
 
     dls = []
-    for ts in timespans:
+    for i, ts in enumerate(timespans):
+        logging.info(f"timespan for {i+1}. dataloader: {ts}")
         dls.append(
-            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=False)
+            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=True)
         )
 
     total_steps = len(dls[0]) * epochs
     warmup_steps = int(total_steps * 0.1)
     decay_steps = total_steps - warmup_steps
+    logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
 
     warmup_scheduler = instantiate(
         model_cfg.warmup_scheduler,
@@ -87,6 +102,15 @@ def main(model_path, data_path):
     trainer.train(project_name, config, weight_path, wandb_path)
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%H:%M:%S",
+        handlers=[
+            RealTimeStreamHandler()
+        ]
+    )
+
     parser = argparse.ArgumentParser(description="Train and validate models on pactcs30 data")
     parser.add_argument(
         "--model-path",
