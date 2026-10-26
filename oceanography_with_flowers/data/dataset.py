@@ -22,10 +22,19 @@ class Pactcs30Dataset(Dataset):
         depth (int): Amount of depth levels
     """
 
-    def __init__(self, path, data_vars, delta=7, keep_raw=["mask_rho", "angle"], timespan=[2010], use_sin_enc=False, depth=1):
+    def __init__(
+        self,
+        path,
+        data_vars,
+        delta=5,
+        rollout=1,
+        keep_raw=["mask_rho", "angle"],
+        timespan=[2010],
+        depth=1
+    ):
         self.delta = delta
-        self.use_sin_enc = use_sin_enc
-        logging.info(f"delta and encoding: {delta} / {"sinusoidal" if use_sin_enc else "FiLM"}")
+        self.rollout = rollout
+        logging.info(f"delta: {delta}")
 
         self.mean = dict()
         self.std = dict()
@@ -45,8 +54,8 @@ class Pactcs30Dataset(Dataset):
         self.lon_rho = dataset["lon_rho"]
         
         # -delta because last delta days have no next simulation step
-        self.len = dataset.sizes["time"] - self.delta
-        self.data = [None] * (self.len + self.delta)
+        self.len = dataset.sizes["time"] - delta * rollout
+        self.data = [None] * (self.len + delta * rollout)
 
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
         logging.info(f"coast mask shape: {self.coast_mask.shape}")
@@ -77,31 +86,24 @@ class Pactcs30Dataset(Dataset):
         
         def store_tensor(idx, row=row, col=col):
             datapoint = dataset.isel(time=idx)
-            features = []
+            base_time = torch.full((row, col), 2*torch.pi*datapoint["time"].item())
+            sin_t = torch.sin(base_time)
+            cos_t = torch.cos(base_time)
 
-            if self.use_sin_enc:
-                base_time = torch.full((row, col), 2*torch.pi*datapoint["time"].item())
-                sin_t = torch.sin(base_time)
-                cos_t = torch.cos(base_time)
+            if idx == 0:
+                logging.info(f"time encoding shape: {base_time.shape}")
 
-                if idx == 0:
-                    logging.info(f"time encoding shape: {base_time.shape}")
-
-                features = [sin_t, cos_t]
+            features = [sin_t, cos_t]
 
             for v in feature_vars:
                 features.append(torch.from_numpy(datapoint[v].values))
 
-            if self.use_sin_enc:
-                self.data[idx] = torch.stack(features)
-                if idx == 0:
-                    logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
-            else:
-                self.data[idx] = (torch.stack(features), torch.tensor(datapoint["time"].item()))
-                if idx == 0:
-                    logging.info(f"First entry of dataset shape: {self.data[idx][0].shape} / {self.data[idx][1].shape}")
+            self.data[idx] = torch.stack(features)
 
-        jobs = [i for i in range(self.len + self.delta)]
+            if idx == 0:
+                logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
+
+        jobs = [i for i in range(self.len + self.delta * rollout)]
 
         # probably not nessecary
         with ThreadPoolExecutor((os.cpu_count() or 1)) as executor:
@@ -111,7 +113,7 @@ class Pactcs30Dataset(Dataset):
         return self.len
         
     def __getitem__(self, idx):
-        if self.use_sin_enc:
+        if self.rollout == 1:
             feature = self.data[idx]
             feature = torch.cat(
                 [
@@ -124,18 +126,32 @@ class Pactcs30Dataset(Dataset):
             # first two entries are time channels which we dont need
             label = self.data[idx+self.delta][2:]
             return feature, label
-        else:
-            feature, time = self.data[idx]
-            feature = torch.cat(
+        elif self.rollolut > 1:
+            goal_idx = idx + self.delta * self.rollout
+
+            feature = self.data[idx][2:]
+            meta_steps = torch.arange(idx, goal_idx, self.delta)
+            label_steps = meta_steps + self.delta
+
+            metadata = self.data[meta_steps][:, :2]
+            labels = self.data[label_steps][:, 2:]
+
+            # adjust shape such that i can cat with metadata
+            coast_mask = self.coast_mask.unsqueeze(0).expand(self.rollout, -1, -1, -1)
+            positional = self.positional.unsqueeze(0).expand(self.rollout, -1, -1, -1)
+
+            metadata = torch.cat(
                 [
-                    self.coast_mask,
-                    self.positional,
-                    feature
-                ], dim=0
+                    coast_mask,
+                    positional,
+                    metadata
+                ], dim=1
             )
 
-            label, _ = self.data[idx+self.delta]
-            return feature, time, label
+            return feature, labels, metadata
+        else:
+            logging.error(f"rollout is {self.rollout} when it should be > 0")
+            return None
 
     def get_mask(self):
         return self.coast_mask.bool()
@@ -175,10 +191,20 @@ class Pactcs30Dataset(Dataset):
         """
     
         all_data = [self.open_pactcs30(path, year) for year in timespan]
-        dataset = xr.concat(all_data, dim='time', data_vars="minimal", coords="minimal")
+        dataset = xr.concat(
+            all_data, 
+            dim='time', 
+            data_vars="minimal", 
+            coords="minimal"
+        )
         return dataset
     
-    def clean_pactcs30(self, dataset, data_vars, keep_raw=["mask_rho", "angle"]):
+    def clean_pactcs30(
+        self,
+        dataset,
+        data_vars,
+        keep_raw=["mask_rho", "angle"]
+    ):
         """
         Clean and prepare data for usage in training. Normalization happens during
         this step.

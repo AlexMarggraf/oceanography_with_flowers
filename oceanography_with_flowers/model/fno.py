@@ -14,7 +14,14 @@ class Pactcs30FNO(nn.Module):
         layers (int): Depth of the network
     """
 
-    def __init__(self, start_channels, end_channels, hidden_channels, modes, layers):
+    def __init__(
+        self,
+        start_channels,
+        end_channels,
+        hidden_channels,
+        modes,
+        layers
+    ):
         super().__init__()
         self.fno = FNOBlocks(
             in_channels=hidden_channels,

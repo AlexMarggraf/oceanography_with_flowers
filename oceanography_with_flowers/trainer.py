@@ -20,69 +20,76 @@ class Pactcs30Trainer():
         pred_vars: The variables that are predicted by the model
     """
 
-    def __init__(self, model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars, use_sin_enc=False):
+    def __init__(
+        self, 
+        model, 
+        dls,
+        rollout_dls,
+        loss_fn, 
+        optimizer, 
+        rollout_optimizer, 
+        scheduler, 
+        rollout_scheduler, 
+        epochs, 
+        rollout_epochs, 
+        device, 
+        pred_vars, 
+        rollout
+    ):
         self.model = model
         self.dls = dls
+        self.rollout_dls = rollout_dls
         self.mask = dls[0].dataset.get_mask()
         self.loss_fn = loss_fn
         self.optimizer = optimizer
+        self.rollout_optimizer = rollout_optimizer
         self.scheduler = scheduler
+        self.rollout_scheduler = rollout_scheduler
         self.epochs = epochs
+        self.rollout_epochs = rollout_epochs
         self.device = device
         self.pred_vars = pred_vars
-        self.use_sin_enc = use_sin_enc
+        self.rollout = rollout
         self.first_pass = True
     
-    def train_model(self):
-        """
-        One iteration of the training loop.
+def train_model(self):
+    """
+    One iteration of the training loop.
 
-        Returns:
-            int: Average training loss of all batches
-        """
-
-        self.model.train()
-        train_loss = 0
-        no_batches = len(self.dls[0])
+    Returns:
+        float: Average 1-step training loss of all batches
+    """
+    self.model.train()
+    train_loss = 0
+    no_batches = len(self.dls[0])
+    
+    for data in self.dls[0]:
+        self.optimizer.zero_grad(set_to_none=True)
+        total_loss = 0
         
-        for data in self.dls[0]:
-            if self.use_sin_enc:
-                feature, label = data
-                feature = feature.to(self.device, non_blocking=True)
-                label = label.to(self.device, non_blocking=True)
-                pred = self.model(feature) 
+        feature, label = data
+        feature = feature.to(self.device, non_blocking=True)
+        label = label.to(self.device, non_blocking=True)
+        
+        pred = self.model(feature) 
 
-                if self.first_pass:
-                    logging.info(f"feature shape: {feature.shape}")
-                    logging.info(f"label shape: {label.shape}")
-                    logging.info(f"prediction shape: {pred.shape}")
-                    self.first_pass = False
-            else:
-                feature, time, label = data
-                feature = feature.to(self.device, non_blocking=True)
-                time = time.to(self.device)
-                label = label.to(self.device, non_blocking=True)
-                pred = self.model(feature, param=time)
+        if self.first_pass:
+            logging.info(f"feature shape: {feature.shape}")
+            logging.info(f"label shape: {label.shape}")
+            logging.info(f"prediction shape: {pred.shape}")
+            self.first_pass = False
 
-                if self.first_pass:
-                    logging.info(f"feature shape: {feature.shape}")
-                    logging.infe(f"time shape: {time.shape}")
-                    logging.info(f"label shape: {label.shape}")
-                    logging.info(f"prediction shape: {pred.shape}")
-                    self.first_pass = False
+        v_mask = self.mask.expand_as(pred)
 
-            v_mask = self.mask.expand_as(pred)
+        # Loss is masked to ignore regions not in ocean
+        loss = self.loss_fn(pred[v_mask], label[v_mask])
+        train_loss += loss.item()
 
-            # loss is masked to ignore regions not in ocean
-            loss = self.loss_fn(pred[v_mask], label[v_mask])
-            train_loss += loss.item()
-            loss.backward()
-            
-            self.optimizer.step()
-            self.scheduler.step()
-            self.optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
 
-        return train_loss / no_batches
+    return train_loss / no_batches
     
     def validate_model(self, best_loss, img_path=None):
         """
@@ -98,17 +105,10 @@ class Pactcs30Trainer():
     
         with torch.no_grad():
             for data in self.dls[1]:
-                if self.use_sin_enc:
-                    feature, label = data
-                    feature = feature.to(self.device, non_blocking=True)
-                    label = label.to(self.device, non_blocking=True)
-                    pred = self.model(feature) 
-                else:
-                    feature, time, label = data
-                    feature = feature.to(self.device, non_blocking=True)
-                    time = time.to(self.device)
-                    label = label.to(self.device, non_blocking=True)
-                    pred = self.model(feature, param=time)
+                feature, label = data
+                feature = feature.to(self.device, non_blocking=True)
+                label = label.to(self.device, non_blocking=True)
+                pred = self.model(feature) 
 
                 v_mask = self.mask.expand_as(pred)
 
@@ -119,88 +119,134 @@ class Pactcs30Trainer():
             val_loss /= no_batches
         
             if val_loss < best_loss:
-                if self.use_sin_enc:
-                    feature, label = next(iter(self.dls[1]))
-                    feature = feature.to(self.device)
-                    pred = self.model(feature)
-                else:
-                    feature, time, label = next(iter(self.dls[1]))
-                    feature = feature.to(self.device)
-                    time = time.to(self.device)
-                    pred = self.model(feature, time)
+                feature, label = next(iter(self.dls[1]))
+                feature = feature.to(self.device, non_blocking=True)
+                pred = self.model(feature)
 
                 pred = self.dls[0].dataset.tensor_to_dataset(pred[0].detach().cpu(), self.pred_vars)
                 label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
 
-                scales = self.dls[0].dataset.plot_dataset(label, f"{img_path}/label", self.pred_vars, return_scales=True)
-                self.dls[0].dataset.plot_dataset(pred, f"{img_path}/prediction", self.pred_vars, scales=scales)
+                scales = self.dls[0].dataset.plot_dataset(
+                    label, 
+                    f"{img_path}/label", 
+                    self.pred_vars, 
+                    return_scales=True
+                )
+                self.dls[0].dataset.plot_dataset(
+                    pred, 
+                    f"{img_path}/prediction", 
+                    self.pred_vars, 
+                    scales=scales
+                )
 
-            if self.use_sin_enc:
-                #TODO unhardcode length of rollout
-                curr_day = np.random.randint(0, len(self.dls[1].dataset) - 1 - (self.dls[1].dataset.delta * 10)) 
-                curr_rollout, _ = self.dls[1].dataset[curr_day]
-                _, rollout_label = self.dls[1].dataset[curr_day + (self.dls[1].dataset.delta * 10)]
-                logging.info(f"rollout start day: {curr_day}")
+        return val_loss
 
-                curr_rollout = curr_rollout[7:]
-                curr_rollout = curr_rollout.unsqueeze(0)
-                rollout_label = rollout_label.unsqueeze(0)
+    def train_rollout(self):
+        self.model.train()
+        rollout_loss = 0
+        no_batches = len(self.rollout_dls[0])
 
-                curr_rollout = curr_rollout.to(self.device)
-                rollout_label = rollout_label.to(self.device)
+        for data in self.rollout_dls[0]:
+            total_loss = 0
+            self.rollout_optimizer.zero_grad(set_to_none=True)
 
-                for _ in range(10):
-                    metadata, _ = self.dls[1].dataset[curr_day]
-                    metadata = metadata[:7]
-                    metadata = metadata.unsqueeze(0)
-                    metadata = metadata.to(self.device)
+            curr_state, labels, metadata = data
+            curr_state = curr_state.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+            metadata = metadata.to(device,non_blocking=True)
 
-                    curr_rollout = torch.cat(
+            if self.first_pass:
+                logging.info(f"rollout start shape: {curr_state.shape}")
+                logging.info(f"rollout label shape: {labels.shape}")
+                logging.info(f"rollout metadata shape: {metadata.shape}")
+
+            for i in range(self.rollout):
+                curr_state = torch.cat(
+                    [
+                        curr_state,
+                        metadata[:, i]
+                    ], dim=1
+                )
+
+                next_state = self.model(curr_state)
+                v_mask = self.mask.expand_as(labels[:, i])
+                total_loss += self.loss_fn(next_state[v_mask], labels[:, i][v_mask])
+
+                if i < self.rollout - 1:
+                    curr_state = next_state.detach()
+
+            if self.first_pass:
+                logging.info(f"rollout prediction shape: {curr_state.shape}")
+                self.first_pass = False
+
+            rollout_loss += total_loss.item()
+            total_loss.backward()
+            self.rollout_optimizer.step()
+            self.rollout_scheduler.step()
+        
+        return rollout_loss / no_batches
+    
+    def validate_rollout(self, best_loss, img_path=None):
+        self.model.eval()
+        val_loss = 0
+        no_batches = len(self.rollout_dls[1])
+
+        with torch.no_grad():
+            for data in self.rollout_dls[1]:
+                curr_state, labels, metadata = data
+                curr_state = curr_state.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
+                metadata = metadata.to(device,non_blocking=True)
+
+                for i in range(self.rollout):
+                    curr_state = torch.cat(
                         [
-                            metadata,
-                            curr_rollout
+                            curr_state,
+                            metadata[:, i]
                         ], dim=1
                     )
 
-                    curr_rollout = self.model(curr_rollout)
-                    curr_day += self.dls[1].dataset.delta
-
-            else:
-                #TODO unhardcode length of rollout
-                curr_day = np.random.randint(0, len(self.dls[1].dataset) - 1 - (self.dls[1].dataset.delta * 10)) 
-                curr_rollout, _, _ = self.dls[1].dataset[curr_day]
-                _, _, rollout_label = self.dls[1].dataset[curr_day + (self.dls[1].dataset.delta * 10)]
-                logging.info(f"rollout start day: {curr_day}")
-
-                curr_rollout = curr_rollout[5:]
-                curr_rollout = curr_rollout.unsqueeze(0)
-                rollout_label = rollout_label.unsqueeze(0)
-
-                curr_rollout = curr_rollout.to(self.device)
-                rollout_label = rollout_label.to(self.device)
-
-                for _ in range(10):
-                    metadata, time, _ = self.dls[1].dataset[curr_day]
-                    time = time.to(self.device)
-                    #TODO unhardcode this lowk
-                    metadata = metadata[:5]
-                    metadata = metadata.unsqueeze(0)
-                    metadata = metadata.to(self.device)
-
-                    curr_rollout = torch.cat(
-                        [
-                            metadata,
-                            curr_rollout
-                        ], dim=1
-                    )
-
-                    curr_rollout = self.model(curr_rollout, time)
-                    curr_day += self.dls[1].dataset.delta
+                    curr_state = self.model(curr_state)
+                    v_mask = self.mask.expand_as(labels[:, i])
+                    total_loss += self.loss_fn(curr_state[v_mask], labels[:, i][v_mask])
                 
-            v_mask = self.mask.expand_as(curr_rollout)
-            rollout_loss = self.loss_fn(curr_rollout[v_mask], rollout_label[v_mask])
+                val_loss += total_loss.item()
+        
+            val_loss /= no_batches
 
-        return val_loss, rollout_loss
+            if val_loss < best_loss:
+                curr_state, labels, metadata = next(iter(self.rollout_dls[1]))
+                curr_state = curr_state.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
+                metadata = metadata.to(device,non_blocking=True)
+
+                for i in range(self.rollout):
+                    curr_state = torch.cat(
+                        [
+                            curr_state,
+                            metadata[:, i]
+                        ], dim=1
+                    )
+
+                    curr_state = self.model(curr_state)
+
+                curr_state = self.rollout_dls[0].dataset.tensor_to_dataset(curr_state[0].detach().cpu(), self.pred_vars)
+                label = self.rollout_dls[0].dataset.tensor_to_dataset(labels[0, -1].detach().cpu(), self.pred_vars)
+
+                scales = self.rollout_dls[0].dataset.plot_dataset(
+                    label, 
+                    f"{img_path}/rollout_label", 
+                    self.pred_vars, 
+                    return_scales=True
+                )
+                self.rollout_dls[0].dataset.plot_dataset(
+                    curr_state, 
+                    f"{img_path}/rollout_prediction", 
+                    self.pred_vars, 
+                    scales=scales
+                )
+
+        return val_loss
 
     def train(self, project_name, config, weight_path, wandb_path):
         """
@@ -221,7 +267,7 @@ class Pactcs30Trainer():
         
         for epoch in range(self.epochs):
             train_loss = self.train_model() 
-            val_loss, rollout_loss = self.validate_model(best_loss, img_path=f"{wandb_path}/img/{run.id}")
+            val_loss = self.validate_model(best_loss, img_path=f"{wandb_path}/img/{run.id}")
 
             """ logging.info(f"train loss: {train_loss}")
             logging.info(f"validation loss: {val_loss}")
@@ -233,13 +279,37 @@ class Pactcs30Trainer():
             
             wandb.log({
                 "train_loss": train_loss,
-                "validation_loss": val_loss,
-                "rollout_loss" : rollout_loss
+                "validation_loss": val_loss
             })
 
             if val_loss < best_loss:
                 best_loss = val_loss
-                #torch.save(self.model.state_dict(), weight_path / f"best_loss.pt")
+                torch.save(self.model.state_dict(), weight_path / "best_loss.pt")
+
+        self.first_pass = True
+        best_loss = float("inf")
+        state_dict = torch.load(weight_path / "best_loss.pt", weights_only=True)
+        self.model.load_state_dict(state_dict)
+
+        for epoch in range(self.rollout_epochs):
+            rollout_loss = self.train_rollout() 
+            val_loss = self.validate_rollout(best_loss, img_path=f"{wandb_path}/img/{run.id}")
+
+            """ logging.info(f"rollout loss: {rollout_loss}")
+            logging.info(f"rollout validation loss: {val_loss}") """
+
+            if epoch == 0:
+                max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
+                logging.info(f"max GPU memory allocated (rollout): {max_mem_gb:.2f} GB")
+            
+            wandb.log({
+                "rollout_loss": rollout_loss,
+                "rollout_validation": val_loss
+            })
+
+            if val_loss < best_loss:
+                best_loss = val_loss
+                torch.save(self.model.state_dict(), weight_path / f"best_loss.pt")
 
         wandb.finish()
         #logging.info(f"best validation loss: {best_loss}")

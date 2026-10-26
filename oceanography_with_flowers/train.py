@@ -48,13 +48,13 @@ def main(model_path, data_path):
     weight_path = data_cfg.weight_path
     wandb_path = data_cfg.wandb_path
     delta = data_cfg.delta
-    use_sin_enc = data_cfg.use_sin_enc
+    rollout = data_cfg.rollout
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
+    rollout_epochs = max(1, int(model_cfg.rollout_fraction * epochs))
     project_name = model_cfg.project_name
 
-    #model = instantiate(model_cfg.model, use_film=(not use_sin_enc)).to(device)
     model = instantiate(model_cfg.model).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     logging.info(f"model architecure:\n{model}")
@@ -62,6 +62,7 @@ def main(model_path, data_path):
 
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
+    rollout_optimizer = instantiate(model_cfg.rollout_optimizer, params=model.parameters())
 
     timespans = []
     for i in range(len(split) - 1):
@@ -69,37 +70,93 @@ def main(model_path, data_path):
 
     dls = []
     for i, ts in enumerate(timespans):
-        logging.info(f"timespan for {i+1}. dataloader: {ts}")
+        logging.info(f"timespan for {i+1}. training dataloader: {ts}")
         dls.append(
-            DataLoader(Pactcs30Dataset(path, data_vars, delta=delta, timespan=ts, use_sin_enc=use_sin_enc), batch_size=batch_size, shuffle=True)
+            DataLoader(
+                Pactcs30Dataset(
+                    path, 
+                    data_vars, 
+                    delta=delta, 
+                    timespan=ts
+                ), 
+                batch_size=batch_size, 
+                shuffle=True
+            )
+        )
+    
+    rollout_dls = []
+    for i, ts in enumerate(timespans):
+        logging.info(f"timespan for {i+1}. rollout dataloader: {ts}")
+        dls.append(
+            DataLoader(
+                Pactcs30Dataset(
+                    path, 
+                    data_vars, 
+                    delta=delta,
+                    rollout=rollout,
+                    timespan=ts
+                ), 
+                batch_size=batch_size, 
+                shuffle=True
+            )
         )
 
     total_steps = len(dls[0]) * epochs
+    rollout_steps = len(rollout_dls[0]) * rollout_epochs
     warmup_steps = int(total_steps * 0.1)
     decay_steps = total_steps - warmup_steps
     logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
+    logging.info(f"rollout steps: {rollout_steps}")
 
     warmup_scheduler = instantiate(
         model_cfg.warmup_scheduler,
         optimizer=optimizer,
-        total_iters=warmup_steps)
+        total_iters=warmup_steps
+    )
     
     decay_scheduler = instantiate(
         model_cfg.decay_scheduler,
         optimizer=optimizer,
-        T_max=decay_steps)
+        T_max=decay_steps
+    )
 
     scheduler = instantiate(
         model_cfg.scheduler,
         optimizer=optimizer,
         schedulers=[warmup_scheduler, decay_scheduler],
         milestones=[warmup_steps]
-        )
+    )
+    
+    rollout_scheduler = instantiate(
+        model_cfg.rollout_decay_scheduler,
+        optimizer=rollout_optimizer,
+        T_max=rollout_steps
+    )
 
     config = OmegaConf.to_container(model_cfg, resolve=True)
         
-    trainer = Pactcs30Trainer(model, dls, loss_fn, optimizer, scheduler, epochs, device, pred_vars, use_sin_enc=use_sin_enc)
-    trainer.train(project_name, config, weight_path, wandb_path)
+    trainer = Pactcs30Trainer(
+        model,
+        dls,
+        rollout_dls,
+        loss_fn,
+        optimizer,
+        rollout_optimizer,
+        scheduler,
+        rollout_scheduler,
+        epochs,
+        rollout_epochs,
+        device, 
+        pred_vars, 
+        rollout
+    )
+
+    trainer.train(
+        project_name, 
+        config, 
+        weight_path, 
+        wandb_path
+    )
 
 if __name__ == "__main__":
     logging.basicConfig(
