@@ -87,7 +87,7 @@ def main(model_path, data_path):
     rollout_dls = []
     for i, ts in enumerate(timespans):
         logging.info(f"timespan for {i+1}. rollout dataloader: {ts}")
-        dls.append(
+        rollout_dls.append(
             DataLoader(
                 Pactcs30Dataset(
                     path, 
@@ -152,10 +152,10 @@ def main(model_path, data_path):
     )
 
     trainer.train(
-        project_name, 
-        config, 
-        weight_path, 
-        wandb_path
+	project_name,
+	config,
+	weight_path,
+	wandb_path
     )
 
 if __name__ == "__main__":
