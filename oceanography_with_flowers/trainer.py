@@ -52,44 +52,44 @@ class Pactcs30Trainer():
         self.rollout = rollout
         self.first_pass = True
     
-def train_model(self):
-    """
-    One iteration of the training loop.
+    def train_model(self):
+        """
+        One iteration of the training loop.
 
-    Returns:
-        float: Average 1-step training loss of all batches
-    """
-    self.model.train()
-    train_loss = 0
-    no_batches = len(self.dls[0])
-    
-    for data in self.dls[0]:
-        self.optimizer.zero_grad(set_to_none=True)
-        total_loss = 0
+        Returns:
+            float: Average 1-step training loss of all batches
+        """
+        self.model.train()
+        train_loss = 0
+        no_batches = len(self.dls[0])
         
-        feature, label = data
-        feature = feature.to(self.device, non_blocking=True)
-        label = label.to(self.device, non_blocking=True)
-        
-        pred = self.model(feature) 
+        for data in self.dls[0]:
+            self.optimizer.zero_grad(set_to_none=True)
+            total_loss = 0
+            
+            feature, label = data
+            feature = feature.to(self.device, non_blocking=True)
+            label = label.to(self.device, non_blocking=True)
+            
+            pred = self.model(feature) 
 
-        if self.first_pass:
-            logging.info(f"feature shape: {feature.shape}")
-            logging.info(f"label shape: {label.shape}")
-            logging.info(f"prediction shape: {pred.shape}")
-            self.first_pass = False
+            if self.first_pass:
+                logging.info(f"feature shape: {feature.shape}")
+                logging.info(f"label shape: {label.shape}")
+                logging.info(f"prediction shape: {pred.shape}")
+                self.first_pass = False
 
-        v_mask = self.mask.expand_as(pred)
+            v_mask = self.mask.expand_as(pred)
 
-        # Loss is masked to ignore regions not in ocean
-        loss = self.loss_fn(pred[v_mask], label[v_mask])
-        train_loss += loss.item()
+            # Loss is masked to ignore regions not in ocean
+            loss = self.loss_fn(pred[v_mask], label[v_mask])
+            train_loss += loss.item()
 
-        loss.backward()
-        self.optimizer.step()
-        self.scheduler.step()
+            loss.backward()
+            self.optimizer.step()
+            self.scheduler.step()
 
-    return train_loss / no_batches
+        return train_loss / no_batches
     
     def validate_model(self, best_loss, img_path=None):
         """
