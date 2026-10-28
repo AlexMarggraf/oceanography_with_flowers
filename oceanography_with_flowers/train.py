@@ -1,3 +1,4 @@
+import math
 import argparse
 import sys
 import logging
@@ -52,7 +53,7 @@ def main(model_path, data_path):
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
-    rollout_epochs = max(1, int(model_cfg.rollout_fraction * epochs))
+    rollout_epochs = model_cfg.rollout_epochs
     project_name = model_cfg.project_name
 
     model = instantiate(model_cfg.model).to(device)
@@ -83,26 +84,9 @@ def main(model_path, data_path):
                 shuffle=True
             )
         )
-    
-    rollout_dls = []
-    for i, ts in enumerate(timespans):
-        logging.info(f"timespan for {i+1}. rollout dataloader: {ts}")
-        rollout_dls.append(
-            DataLoader(
-                Pactcs30Dataset(
-                    path, 
-                    data_vars, 
-                    delta=delta,
-                    rollout=rollout,
-                    timespan=ts
-                ), 
-                batch_size=batch_size, 
-                shuffle=True
-            )
-        )
 
     total_steps = len(dls[0]) * epochs
-    rollout_steps = len(rollout_dls[0]) * rollout_epochs
+    rollout_steps = len(dls[0]) * rollout_epochs
     warmup_steps = int(total_steps * 0.1)
     decay_steps = total_steps - warmup_steps
     logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
@@ -138,7 +122,6 @@ def main(model_path, data_path):
     trainer = Pactcs30Trainer(
         model,
         dls,
-        rollout_dls,
         loss_fn,
         optimizer,
         rollout_optimizer,

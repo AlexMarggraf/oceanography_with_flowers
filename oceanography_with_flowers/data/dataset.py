@@ -54,8 +54,8 @@ class Pactcs30Dataset(Dataset):
         self.lon_rho = dataset["lon_rho"]
         
         # -delta because last delta days have no next simulation step
-        self.len = dataset.sizes["time"] - delta * rollout
-        self.data = [None] * (self.len + delta * rollout)
+        self.len = dataset.sizes["time"]
+        self.data = [None] * self.len
 
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
         logging.info(f"coast mask shape: {self.coast_mask.shape}")
@@ -103,14 +103,15 @@ class Pactcs30Dataset(Dataset):
             if idx == 0:
                 logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
 
-        jobs = [i for i in range(self.len + self.delta * rollout)]
+        jobs = [i for i in range(self.len)]
 
         # probably not nessecary
         with ThreadPoolExecutor((os.cpu_count() or 1)) as executor:
             list(executor.map(store_tensor, jobs))
             
     def __len__(self):
-        return self.len
+        # calculate flying len to make dataset work for rollout and one step prediction
+        return self.len - (self.rollout * self.delta)
         
     def __getitem__(self, idx):
         if self.rollout == 1:
@@ -126,15 +127,14 @@ class Pactcs30Dataset(Dataset):
             # first two entries are time channels which we dont need
             label = self.data[idx+self.delta][2:]
             return feature, label
-        elif self.rollolut > 1:
+        elif self.rollout > 1:
             goal_idx = idx + self.delta * self.rollout
 
             feature = self.data[idx][2:]
+            label = self.data[goal_idx][2:]
             meta_steps = torch.arange(idx, goal_idx, self.delta)
-            label_steps = meta_steps + self.delta
 
-            metadata = self.data[meta_steps][:, :2]
-            labels = self.data[label_steps][:, 2:]
+            metadata = torch.stack([self.data[i] for i in meta_steps])[:, :2]
 
             # adjust shape such that i can cat with metadata
             coast_mask = self.coast_mask.unsqueeze(0).expand(self.rollout, -1, -1, -1)
@@ -148,7 +148,7 @@ class Pactcs30Dataset(Dataset):
                 ], dim=1
             )
 
-            return feature, labels, metadata
+            return feature, label, metadata
         else:
             logging.error(f"rollout is {self.rollout} when it should be > 0")
             return None

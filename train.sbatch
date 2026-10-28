@@ -4,9 +4,9 @@
 #SBATCH --cpus-per-task=4                 #This is the number of cores reserved
 #SBATCH --mem-per-cpu=64G              #This is the memory reserved per core.
 
-#SBATCH --time=24:00:00        #This is the time that your task will run
-#SBATCH --qos=a100-1day      #You will run in this queue
-#SBATCH --partition=a100
+#SBATCH --time=06:00:00        #This is the time that your task will run
+#SBATCH --qos=rtx4090-6hours     #You will run in this queue
+#SBATCH --partition=rtx4090
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
 

@@ -1,6 +1,6 @@
 project_name: "fno_rollout"
-epochs: 10
-rollout_fraction: 0.1
+epochs: 5
+rollout_epochs: 1
 batch_size: 4
 
 model:
@@ -16,11 +16,11 @@ loss_fn:
   
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 0.001
+  lr: 1.0e-3
 
 rollout_optimizer:
   _target_: torch.optim.AdamW
-  lr: 1.0e-5
+  lr: 5.0e-5
 
 warmup_scheduler:
   _target_: torch.optim.lr_scheduler.LinearLR

@@ -24,7 +24,6 @@ class Pactcs30Trainer():
         self, 
         model, 
         dls,
-        rollout_dls,
         loss_fn, 
         optimizer, 
         rollout_optimizer, 
@@ -38,7 +37,6 @@ class Pactcs30Trainer():
     ):
         self.model = model
         self.dls = dls
-        self.rollout_dls = rollout_dls
         self.mask = dls[0].dataset.get_mask()
         self.loss_fn = loss_fn
         self.optimizer = optimizer
@@ -63,11 +61,7 @@ class Pactcs30Trainer():
         train_loss = 0
         no_batches = len(self.dls[0])
         
-        for data in self.dls[0]:
-            self.optimizer.zero_grad(set_to_none=True)
-            total_loss = 0
-            
-            feature, label = data
+        for i, (feature, label) in enumerate(self.dls[0]):
             feature = feature.to(self.device, non_blocking=True)
             label = label.to(self.device, non_blocking=True)
             
@@ -84,14 +78,15 @@ class Pactcs30Trainer():
             # Loss is masked to ignore regions not in ocean
             loss = self.loss_fn(pred[v_mask], label[v_mask])
             train_loss += loss.item()
-
             loss.backward()
+
             self.optimizer.step()
             self.scheduler.step()
+            self.optimizer.zero_grad(set_to_none=True)
 
         return train_loss / no_batches
     
-    def validate_model(self, best_loss, img_path=None):
+    def validate_model(self, plot=False, img_path=None):
         """
         One iteration of the validation loop.
 
@@ -104,8 +99,7 @@ class Pactcs30Trainer():
         no_batches = len(self.dls[1])
     
         with torch.no_grad():
-            for data in self.dls[1]:
-                feature, label = data
+            for feature, label in self.dls[1]:
                 feature = feature.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
                 pred = self.model(feature) 
@@ -118,7 +112,7 @@ class Pactcs30Trainer():
 
             val_loss /= no_batches
         
-            if val_loss < best_loss:
+            if plot:
                 feature, label = next(iter(self.dls[1]))
                 feature = feature.to(self.device, non_blocking=True)
                 pred = self.model(feature)
@@ -142,104 +136,81 @@ class Pactcs30Trainer():
         return val_loss
 
     def train_rollout(self):
-        self.model.train()
         rollout_loss = 0
-        no_batches = len(self.rollout_dls[0])
+        no_batches = len(self.dls[0])
 
-        for data in self.rollout_dls[0]:
-            total_loss = 0
-            self.rollout_optimizer.zero_grad(set_to_none=True)
+        for i, (curr_state, label, metadata) in enumerate(self.dls[0]):
+            curr_state = curr_state.to(self.device, non_blocking=True)
+            label = label.to(self.device, non_blocking=True)
+            metadata = metadata.to(self.device, non_blocking=True)
 
-            curr_state, labels, metadata = data
-            curr_state = curr_state.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
-            metadata = metadata.to(device,non_blocking=True)
+            with torch.no_grad():
+                for j in range(self.dls[0].dataset.rollout):
+                    curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
+                    curr_state = self.model(curr_state)
+
+            curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
+            curr_state = self.model(curr_state)
 
             if self.first_pass:
-                logging.info(f"rollout start shape: {curr_state.shape}")
-                logging.info(f"rollout label shape: {labels.shape}")
+                logging.info(f"rollout state shape: {curr_state.shape}")
+                logging.info(f"rollout label shape: {label.shape}")
                 logging.info(f"rollout metadata shape: {metadata.shape}")
-
-            for i in range(self.rollout):
-                curr_state = torch.cat(
-                    [
-                        curr_state,
-                        metadata[:, i]
-                    ], dim=1
-                )
-
-                next_state = self.model(curr_state)
-                v_mask = self.mask.expand_as(labels[:, i])
-                total_loss += self.loss_fn(next_state[v_mask], labels[:, i][v_mask])
-
-                if i < self.rollout - 1:
-                    curr_state = next_state.detach()
-
-            if self.first_pass:
-                logging.info(f"rollout prediction shape: {curr_state.shape}")
                 self.first_pass = False
 
-            rollout_loss += total_loss.item()
-            total_loss.backward()
+            v_mask = self.mask.expand_as(label)
+            loss = self.loss_fn(curr_state[v_mask], label[v_mask])
+            rollout_loss += loss.item()
+            loss.backward()
+
             self.rollout_optimizer.step()
             self.rollout_scheduler.step()
-        
+            self.rollout_optimizer.zero_grad(set_to_none=True)
+
         return rollout_loss / no_batches
     
     def validate_rollout(self, best_loss, img_path=None):
         self.model.eval()
         val_loss = 0
-        no_batches = len(self.rollout_dls[1])
+        no_batches = len(self.dls[1])
 
         with torch.no_grad():
-            for data in self.rollout_dls[1]:
-                curr_state, labels, metadata = data
-                curr_state = curr_state.to(device, non_blocking=True)
-                labels = labels.to(device, non_blocking=True)
-                metadata = metadata.to(device,non_blocking=True)
+            for curr_state, label, metadata in self.dls[1]:
+                curr_state = curr_state.to(self.device, non_blocking=True)
+                label = label.to(self.device, non_blocking=True)
+                metadata = metadata.to(self.device,non_blocking=True)
 
-                for i in range(self.rollout):
-                    curr_state = torch.cat(
-                        [
-                            curr_state,
-                            metadata[:, i]
-                        ], dim=1
-                    )
-
+                for i in range(self.dls[1].dataset.rollout):
+                    curr_state = torch.cat([curr_state, metadata[:, i]], dim=1)
                     curr_state = self.model(curr_state)
-                    v_mask = self.mask.expand_as(labels[:, i])
-                    total_loss += self.loss_fn(curr_state[v_mask], labels[:, i][v_mask])
-                
-                val_loss += total_loss.item()
+
+                v_mask = self.mask.expand_as(label)
+                loss = self.loss_fn(curr_state[v_mask], label[v_mask])
+
+                val_loss += loss.item()
         
             val_loss /= no_batches
 
             if val_loss < best_loss:
-                curr_state, labels, metadata = next(iter(self.rollout_dls[1]))
-                curr_state = curr_state.to(device, non_blocking=True)
-                labels = labels.to(device, non_blocking=True)
-                metadata = metadata.to(device,non_blocking=True)
+                curr_state, label, metadata = next(iter(self.dls[1]))
+                curr_state = curr_state.to(self.device, non_blocking=True)
+                label = label.to(self.device, non_blocking=True)
+                metadata = metadata.to(self.device,non_blocking=True)
 
-                for i in range(self.rollout):
-                    curr_state = torch.cat(
-                        [
-                            curr_state,
-                            metadata[:, i]
-                        ], dim=1
-                    )
-
+                for i in range(self.dls[1].dataset.rollout):
+                    curr_state = torch.cat([curr_state, metadata[:, i]], dim=1)
                     curr_state = self.model(curr_state)
 
-                curr_state = self.rollout_dls[0].dataset.tensor_to_dataset(curr_state[0].detach().cpu(), self.pred_vars)
-                label = self.rollout_dls[0].dataset.tensor_to_dataset(labels[0, -1].detach().cpu(), self.pred_vars)
+                curr_state = self.dls[0].dataset.tensor_to_dataset(curr_state[0].detach().cpu(), self.pred_vars)
+                label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
 
-                scales = self.rollout_dls[0].dataset.plot_dataset(
+                scales = self.dls[0].dataset.plot_dataset(
                     label, 
                     f"{img_path}/rollout_label", 
                     self.pred_vars, 
                     return_scales=True
                 )
-                self.rollout_dls[0].dataset.plot_dataset(
+                self.dls[0].dataset.plot_dataset(
                     curr_state, 
                     f"{img_path}/rollout_prediction", 
                     self.pred_vars, 
@@ -260,18 +231,14 @@ class Pactcs30Trainer():
         """
 
         run = wandb.init(project=project_name, config=config, dir=wandb_path, reinit=True)
-        """ weight_path = Path(f"{weight_path}/run_{run.id}")
-        weight_path.mkdir(parents=True, exist_ok=True) """
+        weight_path = Path(f"{weight_path}/run_{run.id}")
+        weight_path.mkdir(parents=True, exist_ok=True)
 
         best_loss = float("inf")
         
         for epoch in range(self.epochs):
             train_loss = self.train_model() 
-            val_loss = self.validate_model(best_loss, img_path=f"{wandb_path}/img/{run.id}")
-
-            """ logging.info(f"train loss: {train_loss}")
-            logging.info(f"validation loss: {val_loss}")
-            logging.info(f"rollout loss: {rollout_loss}") """
+            val_loss = self.validate_model()
 
             if epoch == 0:
                 max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
@@ -287,29 +254,34 @@ class Pactcs30Trainer():
                 torch.save(self.model.state_dict(), weight_path / "best_loss.pt")
 
         self.first_pass = True
-        best_loss = float("inf")
         state_dict = torch.load(weight_path / "best_loss.pt", weights_only=True)
         self.model.load_state_dict(state_dict)
 
-        for epoch in range(self.rollout_epochs):
-            rollout_loss = self.train_rollout() 
-            val_loss = self.validate_rollout(best_loss, img_path=f"{wandb_path}/img/{run.id}")
+        # Assumption is, that the rollout will get better no matter what
+        best_loss = float("inf")
+        self.dls[0].dataset.rollout = 2
+        self.dls[1].dataset.rollout = self.rollout
 
-            """ logging.info(f"rollout loss: {rollout_loss}")
-            logging.info(f"rollout validation loss: {val_loss}") """
+        for epoch in range(self.rollout_epochs):
+            rollout_loss = self.train_rollout()
+            val_loss = self.validate_rollout(
+                best_loss, img_path=f"{wandb_path}/img/{run.id}"
+            )
 
             if epoch == 0:
                 max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
-                logging.info(f"max GPU memory allocated (rollout): {max_mem_gb:.2f} GB")
-            
+                logging.info(f"max GPU memory allocated during rollout: {max_mem_gb:.2f} GB")
+
             wandb.log({
-                "rollout_loss": rollout_loss,
+                "rollout_loss": rollout_loss, 
                 "rollout_validation": val_loss
             })
 
             if val_loss < best_loss:
                 best_loss = val_loss
-                torch.save(self.model.state_dict(), weight_path / f"best_loss.pt")
-
+                torch.save(self.model.state_dict(), weight_path / "best_loss.pt")
+        
+        self.dls[1].dataset.rollout = 1
+        val_loss = self.validate_model(plot=True, img_path=f"{wandb_path}/img/{run.id}")
+        logging.info(f"final one step prediction loss: {val_loss}")
         wandb.finish()
-        #logging.info(f"best validation loss: {best_loss}")
