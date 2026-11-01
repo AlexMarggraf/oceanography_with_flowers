@@ -145,7 +145,7 @@ class Pactcs30Trainer():
             metadata = metadata.to(self.device, non_blocking=True)
 
             with torch.no_grad():
-                for j in range(self.dls[0].dataset.rollout):
+                for j in range(self.dls[0].dataset.rollout - 1):
                     curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
                     curr_state = self.model(curr_state)
 
@@ -259,7 +259,7 @@ class Pactcs30Trainer():
 
         # Assumption is, that the rollout will get better no matter what
         best_loss = float("inf")
-        self.dls[0].dataset.rollout = 2
+        self.dls[0].dataset.rollout = self.rollout
         self.dls[1].dataset.rollout = self.rollout
 
         for epoch in range(self.rollout_epochs):
@@ -283,5 +283,7 @@ class Pactcs30Trainer():
         
         self.dls[1].dataset.rollout = 1
         val_loss = self.validate_model(plot=True, img_path=f"{wandb_path}/img/{run.id}")
-        logging.info(f"final one step prediction loss: {val_loss}")
+        wandb.log({
+            "final_val_loss": val_loss
+        })
         wandb.finish()

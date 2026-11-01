@@ -32,4 +32,5 @@
 
 #add your command lines below
 #############################
-uv run oceanography_with_flowers/train.py --model-path config/fno.yaml --data-path config/pactcs30.yaml
+export TORCHINDUCTOR_COMPILE_THREADS=1
+uv run oceanography_with_flowers/train.py --model-path config/flower.yaml --data-path config/pactcs30.yaml

@@ -15,6 +15,7 @@ from omegaconf import OmegaConf
 from hydra.utils import instantiate
 
 from oceanography_with_flowers.model.fno import Pactcs30FNO
+from oceanography_with_flowers.model.flower import Flower
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
@@ -50,13 +51,20 @@ def main(model_path, data_path):
     wandb_path = data_cfg.wandb_path
     delta = data_cfg.delta
     rollout = data_cfg.rollout
+    width = data_cfg.width
+    height = data_cfg.height
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
     rollout_epochs = model_cfg.rollout_epochs
     project_name = model_cfg.project_name
+    
+    match project_name:
+        case "flower":
+            model = instantiate(model_cfg.model, spatial_resolution=(width+2, height+4)).to(device)
+        case _:
+            model = instantiate(model_cfg.model).to(device)
 
-    model = instantiate(model_cfg.model).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     logging.info(f"model architecure:\n{model}")
     logging.info(f"total parameters: {total_params:,}")
@@ -69,6 +77,7 @@ def main(model_path, data_path):
     for i in range(len(split) - 1):
         timespans.append([year for year in range(split[i], split[i+1])])
 
+    pad = True if project_name == "flower" else False
     dls = []
     for i, ts in enumerate(timespans):
         logging.info(f"timespan for {i+1}. training dataloader: {ts}")
@@ -76,7 +85,8 @@ def main(model_path, data_path):
             DataLoader(
                 Pactcs30Dataset(
                     path, 
-                    data_vars, 
+                    data_vars,
+                    pad=pad,
                     delta=delta, 
                     timespan=ts
                 ), 

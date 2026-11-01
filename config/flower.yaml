@@ -1,0 +1,42 @@
+project_name: "flower"
+epochs: 10
+rollout_epochs: 1
+batch_size: 4
+
+model:
+  _target_: __main__.Flower
+  dim_in: 17
+  dim_out: 10
+  n_spatial_dims: 2
+  lifting_dim: 160
+  n_levels: 4
+  num_heads: 40
+  groups: 40
+  dropout_rate: 0.0
+
+loss_fn:
+  _target_: torch.nn.MSELoss
+  
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-3
+
+rollout_optimizer:
+  _target_: torch.optim.AdamW
+  lr: 5.0e-5
+
+warmup_scheduler:
+  _target_: torch.optim.lr_scheduler.LinearLR
+  start_factor: 0.01
+  end_factor: 1.0
+
+decay_scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  eta_min: 1.0e-6
+
+rollout_decay_scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  eta_min: 1.0e-6
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.SequentialLR

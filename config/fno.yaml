@@ -1,5 +1,5 @@
 project_name: "fno_rollout"
-epochs: 5
+epochs: 10
 rollout_epochs: 1
 batch_size: 4
 

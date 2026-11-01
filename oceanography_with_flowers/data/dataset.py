@@ -26,6 +26,7 @@ class Pactcs30Dataset(Dataset):
         self,
         path,
         data_vars,
+        pad=False,
         delta=5,
         rollout=1,
         keep_raw=["mask_rho", "angle"],
@@ -34,13 +35,14 @@ class Pactcs30Dataset(Dataset):
     ):
         self.delta = delta
         self.rollout = rollout
+        self.pad = pad
         logging.info(f"delta: {delta}")
 
         self.mean = dict()
         self.std = dict()
 
         dataset = self.load_pactcs30(path, timespan)
-        dataset = self.clean_pactcs30(dataset, data_vars, keep_raw)
+        dataset = self.clean_pactcs30(dataset, data_vars, pad=pad, keep_raw=keep_raw)
         logging.info(f"data variables: {list(dataset.data_vars)}")
         logging.info(f"data dimensions: {list(dataset.dims)}")
         logging.info(f"dataset shape: {dataset.dims}")
@@ -203,6 +205,7 @@ class Pactcs30Dataset(Dataset):
         self,
         dataset,
         data_vars,
+        pad=False,
         keep_raw=["mask_rho", "angle"]
     ):
         """
@@ -216,7 +219,7 @@ class Pactcs30Dataset(Dataset):
         Returns:
             xarray.Dataset: Cleaned data in dataset.
         """
-    
+
         dataset["time"] = xr.where(
             dataset["time"].dt.is_leap_year,
             (dataset["time"].dt.dayofyear.values - 1) / 365,
@@ -281,7 +284,16 @@ class Pactcs30Dataset(Dataset):
         # used to make data behave more like normal distribution
         for v in var_norm:
             new[v] = (new[v] - self.mean[v]) / self.std[v]
-    
+
+        # Needed for Flowers
+        if pad:
+            new = new.pad(
+                eta_rho=(1,1),
+                xi_rho=(2,2),
+                mode="constant",
+                constant_values=0
+            )
+
         new = new.fillna(0)
         return new
 
@@ -361,6 +373,9 @@ class Pactcs30Dataset(Dataset):
         for v in data_vars:
             fig, ax = plt.subplots(figsize=(8, 6))
             da = dataset[v]
+
+            if self.pad:
+                da = da.isel(eta_rho=slice(1, -1), xi_rho=slice(2,-2))
 
             if scales is not None and v in scales:
                 vmin, vmax = scales[v]
