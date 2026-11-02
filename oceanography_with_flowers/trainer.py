@@ -26,11 +26,8 @@ class Pactcs30Trainer():
         dls,
         loss_fn, 
         optimizer, 
-        rollout_optimizer, 
         scheduler, 
-        rollout_scheduler, 
         epochs, 
-        rollout_epochs, 
         device, 
         pred_vars, 
         rollout
@@ -40,117 +37,39 @@ class Pactcs30Trainer():
         self.mask = dls[0].dataset.get_mask()
         self.loss_fn = loss_fn
         self.optimizer = optimizer
-        self.rollout_optimizer = rollout_optimizer
         self.scheduler = scheduler
-        self.rollout_scheduler = rollout_scheduler
         self.epochs = epochs
-        self.rollout_epochs = rollout_epochs
         self.device = device
         self.pred_vars = pred_vars
         self.rollout = rollout
         self.first_pass = True
-    
+
     def train_model(self):
-        """
-        One iteration of the training loop.
-
-        Returns:
-            float: Average 1-step training loss of all batches
-        """
-        self.model.train()
-        train_loss = 0
-        no_batches = len(self.dls[0])
-        
-        for i, (feature, label) in enumerate(self.dls[0]):
-            feature = feature.to(self.device, non_blocking=True)
-            label = label.to(self.device, non_blocking=True)
-            
-            pred = self.model(feature) 
-
-            if self.first_pass:
-                logging.info(f"feature shape: {feature.shape}")
-                logging.info(f"label shape: {label.shape}")
-                logging.info(f"prediction shape: {pred.shape}")
-                self.first_pass = False
-
-            v_mask = self.mask.expand_as(pred)
-
-            # Loss is masked to ignore regions not in ocean
-            loss = self.loss_fn(pred[v_mask], label[v_mask])
-            train_loss += loss.item()
-            loss.backward()
-
-            self.optimizer.step()
-            self.scheduler.step()
-            self.optimizer.zero_grad(set_to_none=True)
-
-        return train_loss / no_batches
-    
-    def validate_model(self, plot=False, img_path=None):
-        """
-        One iteration of the validation loop.
-
-        Returns:
-            int: Average validation loss of all batches
-        """
-                
-        self.model.eval()
-        val_loss = 0
-        no_batches = len(self.dls[1])
-    
-        with torch.no_grad():
-            for feature, label in self.dls[1]:
-                feature = feature.to(self.device, non_blocking=True)
-                label = label.to(self.device, non_blocking=True)
-                pred = self.model(feature) 
-
-                v_mask = self.mask.expand_as(pred)
-
-                # loss is masked to ignore regions not in ocean
-                loss = self.loss_fn(pred[v_mask], label[v_mask])
-                val_loss += loss.item()
-
-            val_loss /= no_batches
-        
-            if plot:
-                feature, label = next(iter(self.dls[1]))
-                feature = feature.to(self.device, non_blocking=True)
-                pred = self.model(feature)
-
-                pred = self.dls[0].dataset.tensor_to_dataset(pred[0].detach().cpu(), self.pred_vars)
-                label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
-
-                scales = self.dls[0].dataset.plot_dataset(
-                    label, 
-                    f"{img_path}/label", 
-                    self.pred_vars, 
-                    return_scales=True
-                )
-                self.dls[0].dataset.plot_dataset(
-                    pred, 
-                    f"{img_path}/prediction", 
-                    self.pred_vars, 
-                    scales=scales
-                )
-
-        return val_loss
-
-    def train_rollout(self):
+        total_loss = 0
+        step_loss = 0
         rollout_loss = 0
         no_batches = len(self.dls[0])
+        self.model.train()
 
         for i, (curr_state, label, metadata) in enumerate(self.dls[0]):
+            self.optimizer.zero_grad(set_to_none=True)
+            combined_loss = 0
+            
             curr_state = curr_state.to(self.device, non_blocking=True)
             label = label.to(self.device, non_blocking=True)
             metadata = metadata.to(self.device, non_blocking=True)
-
-            with torch.no_grad():
-                for j in range(self.dls[0].dataset.rollout - 1):
-                    curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
-                    curr_state = self.model(curr_state)
-
-            curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
+            
+            # calculate one step loss
+            curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
             curr_state = self.model(curr_state)
+
+            v_mask = self.mask.expand_as(label[:, 0])
+            loss = self.loss_fn(curr_state[v_mask], label[:, 0][v_mask])
+
+            combined_loss += loss.item()
+            step_loss += loss.item()
+
+            loss.backward()
 
             if self.first_pass:
                 logging.info(f"rollout state shape: {curr_state.shape}")
@@ -158,66 +77,122 @@ class Pactcs30Trainer():
                 logging.info(f"rollout metadata shape: {metadata.shape}")
                 self.first_pass = False
 
-            v_mask = self.mask.expand_as(label)
-            loss = self.loss_fn(curr_state[v_mask], label[v_mask])
-            rollout_loss += loss.item()
-            loss.backward()
-
-            self.rollout_optimizer.step()
-            self.rollout_scheduler.step()
-            self.rollout_optimizer.zero_grad(set_to_none=True)
-
-        return rollout_loss / no_batches
-    
-    def validate_rollout(self, best_loss, img_path=None):
-        self.model.eval()
-        val_loss = 0
-        no_batches = len(self.dls[1])
-
-        with torch.no_grad():
-            for curr_state, label, metadata in self.dls[1]:
-                curr_state = curr_state.to(self.device, non_blocking=True)
-                label = label.to(self.device, non_blocking=True)
-                metadata = metadata.to(self.device,non_blocking=True)
-
-                for i in range(self.dls[1].dataset.rollout):
-                    curr_state = torch.cat([curr_state, metadata[:, i]], dim=1)
+            # calculate rollout loss
+            with torch.no_grad():
+                for j in range(1, self.dls[0].dataset.rollout - 1):
+                    curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
                     curr_state = self.model(curr_state)
 
-                v_mask = self.mask.expand_as(label)
-                loss = self.loss_fn(curr_state[v_mask], label[v_mask])
+            curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
+            curr_state = self.model(curr_state)
 
-                val_loss += loss.item()
-        
-            val_loss /= no_batches
+            v_mask = self.mask.expand_as(label[:, 1])
+            loss = self.loss_fn(curr_state[v_mask], label[:, 1][v_mask])
 
-            if val_loss < best_loss:
+            combined_loss += loss.item()
+            rollout_loss += loss.item()
+            total_loss += combined_loss
+            
+            loss.backward()
+            self.optimizer.step()
+            self.scheduler.step()
+
+        return step_loss / no_batches, rollout_loss / no_batches, total_loss / no_batches
+    
+    def validate_model(self, best_loss, img_path=None):
+        total_loss = 0
+        step_loss = 0
+        rollout_loss = 0
+        no_batches = len(self.dls[0])
+        self.model.eval()
+
+        with torch.no_grad():
+            for i, (curr_state, label, metadata) in enumerate(self.dls[0]):
+                combined_loss = 0
+                
+                curr_state = curr_state.to(self.device, non_blocking=True)
+                label = label.to(self.device, non_blocking=True)
+                metadata = metadata.to(self.device, non_blocking=True)
+                
+                # calculate one step loss
+                curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
+                curr_state = self.model(curr_state)
+
+                v_mask = self.mask.expand_as(label[:, 0])
+                loss = self.loss_fn(curr_state[v_mask], label[:, 0][v_mask])
+
+                combined_loss += loss.item()
+                step_loss += loss.item()
+
+                # calculate rollout loss
+                with torch.no_grad():
+                    for j in range(1, self.dls[0].dataset.rollout - 1):
+                        curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
+                        curr_state = self.model(curr_state)
+
+                curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
+                curr_state = self.model(curr_state)
+
+                v_mask = self.mask.expand_as(label[:, 1])
+                loss = self.loss_fn(curr_state[v_mask], label[:, 1][v_mask])
+
+                combined_loss += loss.item()
+                rollout_loss += loss.item()
+                total_loss += combined_loss
+
+            step_loss /= no_batches
+            rollout_loss /= no_batches
+            total_loss /= no_batches
+
+            if total_loss < best_loss:
                 curr_state, label, metadata = next(iter(self.dls[1]))
                 curr_state = curr_state.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device,non_blocking=True)
 
-                for i in range(self.dls[1].dataset.rollout):
-                    curr_state = torch.cat([curr_state, metadata[:, i]], dim=1)
-                    curr_state = self.model(curr_state)
+                step = torch.cat([curr_state, metadata[:, 0]], dim=1)
+                step = self.model(step)
+                rollout = step.clone()
 
-                curr_state = self.dls[0].dataset.tensor_to_dataset(curr_state[0].detach().cpu(), self.pred_vars)
-                label = self.dls[0].dataset.tensor_to_dataset(label[0].detach().cpu(), self.pred_vars)
+                for i in range(1, self.dls[1].dataset.rollout):
+                    rollout = torch.cat([rollout, metadata[:, i]], dim=1)
+                    rollout = self.model(rollout)
 
-                scales = self.dls[0].dataset.plot_dataset(
-                    label, 
+                step = self.dls[0].dataset.tensor_to_dataset(step[0].detach().cpu(), self.pred_vars)
+                step_label = self.dls[0].dataset.tensor_to_dataset(label[0, 0].detach().cpu(), self.pred_vars)
+
+                rollout = self.dls[0].dataset.tensor_to_dataset(rollout[0].detach().cpu(), self.pred_vars)
+                rollout_label = self.dls[0].dataset.tensor_to_dataset(label[0, 1].detach().cpu(), self.pred_vars)
+
+                step_scales = self.dls[0].dataset.plot_dataset(
+                    step_label,
+                    f"{img_path}/step_label",
+                    self.pred_vars,
+                    return_scales=True
+                )
+
+                self.dls[0].dataset.plot_dataset(
+                    step,
+                    f"{img_path}/step_pred",
+                    self.pred_vars,
+                    scales=step_scales
+                )
+
+                rollout_scales = self.dls[0].dataset.plot_dataset(
+                    rollout_label, 
                     f"{img_path}/rollout_label", 
                     self.pred_vars, 
                     return_scales=True
                 )
+
                 self.dls[0].dataset.plot_dataset(
-                    curr_state, 
-                    f"{img_path}/rollout_prediction", 
+                    rollout, 
+                    f"{img_path}/rollout_pred", 
                     self.pred_vars, 
-                    scales=scales
+                    scales=rollout_scales
                 )
 
-        return val_loss
+        return step_loss, rollout_loss, total_loss
 
     def train(self, project_name, config, weight_path, wandb_path):
         """
@@ -233,57 +208,27 @@ class Pactcs30Trainer():
         run = wandb.init(project=project_name, config=config, dir=wandb_path, reinit=True)
         weight_path = Path(f"{weight_path}/run_{run.id}")
         weight_path.mkdir(parents=True, exist_ok=True)
-
         best_loss = float("inf")
         
         for epoch in range(self.epochs):
-            train_loss = self.train_model() 
-            val_loss = self.validate_model()
+            step_loss, rollout_loss, total_loss = self.train_model() 
+            step_val, rollout_val, total_val = self.validate_model(best_loss, img_path=f"{wandb_path}/img/{run.id}")
 
             if epoch == 0:
                 max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
                 logging.info(f"max GPU memory allocated: {max_mem_gb:.2f} GB")
             
             wandb.log({
-                "train_loss": train_loss,
-                "validation_loss": val_loss
+                "step_loss": step_loss,
+                "rollout_loss": rollout_loss,
+                "total_loss": total_loss,
+                "step_val": step_val,
+                "rollout_val": rollout_val,
+                "total_val": total_val
             })
 
-            if val_loss < best_loss:
-                best_loss = val_loss
+            if total_val < best_loss:
+                best_loss = total_val
                 torch.save(self.model.state_dict(), weight_path / "best_loss.pt")
 
-        self.first_pass = True
-        state_dict = torch.load(weight_path / "best_loss.pt", weights_only=True)
-        self.model.load_state_dict(state_dict)
-
-        # Assumption is, that the rollout will get better no matter what
-        best_loss = float("inf")
-        self.dls[0].dataset.rollout = self.rollout
-        self.dls[1].dataset.rollout = self.rollout
-
-        for epoch in range(self.rollout_epochs):
-            rollout_loss = self.train_rollout()
-            val_loss = self.validate_rollout(
-                best_loss, img_path=f"{wandb_path}/img/{run.id}"
-            )
-
-            if epoch == 0:
-                max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)
-                logging.info(f"max GPU memory allocated during rollout: {max_mem_gb:.2f} GB")
-
-            wandb.log({
-                "rollout_loss": rollout_loss, 
-                "rollout_validation": val_loss
-            })
-
-            if val_loss < best_loss:
-                best_loss = val_loss
-                torch.save(self.model.state_dict(), weight_path / "best_loss.pt")
-        
-        self.dls[1].dataset.rollout = 1
-        val_loss = self.validate_model(plot=True, img_path=f"{wandb_path}/img/{run.id}")
-        wandb.log({
-            "final_val_loss": val_loss
-        })
         wandb.finish()

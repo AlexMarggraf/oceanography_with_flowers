@@ -14,8 +14,11 @@ from torch.optim.lr_scheduler import (
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
 
-from oceanography_with_flowers.model.fno import Pactcs30FNO
-from oceanography_with_flowers.model.flower import Flower
+from oceanography_with_flowers.model import (
+    Pactcs30FNO,
+    Flower,
+    CNUnet
+)
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 
@@ -56,14 +59,18 @@ def main(model_path, data_path):
 
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
-    rollout_epochs = model_cfg.rollout_epochs
     project_name = model_cfg.project_name
     
     match project_name:
         case "flower":
             model = instantiate(model_cfg.model, spatial_resolution=(width+2, height+4)).to(device)
+            pad = (1, 2)
+        case "cn_unet":
+            model = instantiate(model_cfg.model).to(device)
+            pad = (5, 2)
         case _:
             model = instantiate(model_cfg.model).to(device)
+            pad = None
 
     total_params = sum(p.numel() for p in model.parameters())
     logging.info(f"model architecure:\n{model}")
@@ -71,13 +78,11 @@ def main(model_path, data_path):
 
     loss_fn = instantiate(model_cfg.loss_fn)
     optimizer = instantiate(model_cfg.optimizer, params=model.parameters())
-    rollout_optimizer = instantiate(model_cfg.rollout_optimizer, params=model.parameters())
 
     timespans = []
     for i in range(len(split) - 1):
         timespans.append([year for year in range(split[i], split[i+1])])
 
-    pad = True if project_name == "flower" else False
     dls = []
     for i, ts in enumerate(timespans):
         logging.info(f"timespan for {i+1}. training dataloader: {ts}")
@@ -86,8 +91,9 @@ def main(model_path, data_path):
                 Pactcs30Dataset(
                     path, 
                     data_vars,
-                    pad=pad,
-                    delta=delta, 
+                    pad,
+                    delta=delta,
+                    rollout=rollout,
                     timespan=ts
                 ), 
                 batch_size=batch_size, 
@@ -96,11 +102,9 @@ def main(model_path, data_path):
         )
 
     total_steps = len(dls[0]) * epochs
-    rollout_steps = len(dls[0]) * rollout_epochs
     warmup_steps = int(total_steps * 0.1)
     decay_steps = total_steps - warmup_steps
     logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
-    logging.info(f"rollout steps: {rollout_steps}")
 
     warmup_scheduler = instantiate(
         model_cfg.warmup_scheduler,
@@ -120,12 +124,6 @@ def main(model_path, data_path):
         schedulers=[warmup_scheduler, decay_scheduler],
         milestones=[warmup_steps]
     )
-    
-    rollout_scheduler = instantiate(
-        model_cfg.rollout_decay_scheduler,
-        optimizer=rollout_optimizer,
-        T_max=rollout_steps
-    )
 
     config = OmegaConf.to_container(model_cfg, resolve=True)
         
@@ -134,21 +132,18 @@ def main(model_path, data_path):
         dls,
         loss_fn,
         optimizer,
-        rollout_optimizer,
         scheduler,
-        rollout_scheduler,
         epochs,
-        rollout_epochs,
         device, 
         pred_vars, 
         rollout
     )
 
     trainer.train(
-	project_name,
-	config,
-	weight_path,
-	wandb_path
+        project_name,
+        config,
+        weight_path,
+        wandb_path
     )
 
 if __name__ == "__main__":

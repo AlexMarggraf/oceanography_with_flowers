@@ -26,7 +26,7 @@ class Pactcs30Dataset(Dataset):
         self,
         path,
         data_vars,
-        pad=False,
+        pad,
         delta=5,
         rollout=1,
         keep_raw=["mask_rho", "angle"],
@@ -42,7 +42,7 @@ class Pactcs30Dataset(Dataset):
         self.std = dict()
 
         dataset = self.load_pactcs30(path, timespan)
-        dataset = self.clean_pactcs30(dataset, data_vars, pad=pad, keep_raw=keep_raw)
+        dataset = self.clean_pactcs30(dataset, data_vars, pad, keep_raw=keep_raw)
         logging.info(f"data variables: {list(dataset.data_vars)}")
         logging.info(f"data dimensions: {list(dataset.dims)}")
         logging.info(f"dataset shape: {dataset.dims}")
@@ -133,7 +133,7 @@ class Pactcs30Dataset(Dataset):
             goal_idx = idx + self.delta * self.rollout
 
             feature = self.data[idx][2:]
-            label = self.data[goal_idx][2:]
+            label = torch.stack([self.data[idx + self.delta], self.data[goal_idx]])[:, 2:]
             meta_steps = torch.arange(idx, goal_idx, self.delta)
 
             metadata = torch.stack([self.data[i] for i in meta_steps])[:, :2]
@@ -205,7 +205,7 @@ class Pactcs30Dataset(Dataset):
         self,
         dataset,
         data_vars,
-        pad=False,
+        pad,
         keep_raw=["mask_rho", "angle"]
     ):
         """
@@ -285,11 +285,12 @@ class Pactcs30Dataset(Dataset):
         for v in var_norm:
             new[v] = (new[v] - self.mean[v]) / self.std[v]
 
-        # Needed for Flowers
-        if pad:
+        # Needed for dimensional reduction
+        if pad is not None:
+            x_pad, y_pad = pad
             new = new.pad(
-                eta_rho=(1,1),
-                xi_rho=(2,2),
+                eta_rho=(x_pad, x_pad),
+                xi_rho=(y_pad, y_pad),
                 mode="constant",
                 constant_values=0
             )
@@ -374,8 +375,9 @@ class Pactcs30Dataset(Dataset):
             fig, ax = plt.subplots(figsize=(8, 6))
             da = dataset[v]
 
-            if self.pad:
-                da = da.isel(eta_rho=slice(1, -1), xi_rho=slice(2,-2))
+            if self.pad is not None:
+                x_pad, y_pad = self.pad
+                da = da.isel(eta_rho=slice(x_pad, -x_pad), xi_rho=slice(y_pad, -y_pad))
 
             if scales is not None and v in scales:
                 vmin, vmax = scales[v]
