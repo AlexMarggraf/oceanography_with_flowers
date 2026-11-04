@@ -1,6 +1,8 @@
-project_name: "flower"
+project_name: "rollout"
+model_name: "flower"
 epochs: 20
 batch_size: 4
+acc_steps: 4
 
 model:
   _target_: __main__.Flower

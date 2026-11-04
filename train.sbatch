@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=cnunet_test                   #This is the name of your job
+#SBATCH --job-name=fno_rollout                  #This is the name of your job
 #SBATCH --cpus-per-task=4                 #This is the number of cores reserved
 #SBATCH --mem-per-cpu=64G              #This is the memory reserved per core.
 
@@ -33,4 +33,4 @@
 #add your command lines below
 #############################
 export TORCHINDUCTOR_COMPILE_THREADS=1
-uv run oceanography_with_flowers/train.py --model-path config/cnunet.yaml --data-path config/pactcs30.yaml
+uv run oceanography_with_flowers/train.py --model-path config/fno.yaml --data-path config/pactcs30.yaml

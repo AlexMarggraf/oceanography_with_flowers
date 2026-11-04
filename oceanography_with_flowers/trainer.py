@@ -27,7 +27,8 @@ class Pactcs30Trainer():
         loss_fn, 
         optimizer, 
         scheduler, 
-        epochs, 
+        epochs,
+        acc_steps,
         device, 
         pred_vars, 
         rollout
@@ -39,6 +40,7 @@ class Pactcs30Trainer():
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.epochs = epochs
+        self.acc_steps = acc_steps
         self.device = device
         self.pred_vars = pred_vars
         self.rollout = rollout
@@ -53,7 +55,6 @@ class Pactcs30Trainer():
 
         for i, (curr_state, label, metadata) in enumerate(self.dls[0]):
             self.optimizer.zero_grad(set_to_none=True)
-            combined_loss = 0
             
             curr_state = curr_state.to(self.device, non_blocking=True)
             label = label.to(self.device, non_blocking=True)
@@ -65,8 +66,9 @@ class Pactcs30Trainer():
 
             v_mask = self.mask.expand_as(label[:, 0])
             loss = self.loss_fn(curr_state[v_mask], label[:, 0][v_mask])
+            loss /= self.acc_steps
 
-            combined_loss += loss.item()
+            total_loss += loss.item()
             step_loss += loss.item()
 
             loss.backward()
@@ -88,28 +90,32 @@ class Pactcs30Trainer():
 
             v_mask = self.mask.expand_as(label[:, 1])
             loss = self.loss_fn(curr_state[v_mask], label[:, 1][v_mask])
+            loss /= self.acc_steps
 
-            combined_loss += loss.item()
+            total_loss += loss.item()
             rollout_loss += loss.item()
-            total_loss += combined_loss
             
             loss.backward()
-            self.optimizer.step()
-            self.scheduler.step()
 
-        return step_loss / no_batches, rollout_loss / no_batches, total_loss / no_batches
+            if (i+1) % self.acc_steps == 0 or (i+1) == no_batches:
+                self.optimizer.step()
+                self.scheduler.step()
+
+        step_loss = step_loss * self.acc_steps / no_batches
+        rollout_loss = rollout_loss * self.acc_steps / no_batches
+        total_loss = total_loss * self.acc_steps / no_batches
+
+        return step_loss, rollout_loss, total_loss
     
     def validate_model(self, best_loss, img_path=None):
         total_loss = 0
         step_loss = 0
         rollout_loss = 0
-        no_batches = len(self.dls[0])
+        no_batches = len(self.dls[1])
         self.model.eval()
 
         with torch.no_grad():
-            for i, (curr_state, label, metadata) in enumerate(self.dls[0]):
-                combined_loss = 0
-                
+            for i, (curr_state, label, metadata) in enumerate(self.dls[1]):
                 curr_state = curr_state.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device, non_blocking=True)
@@ -121,14 +127,13 @@ class Pactcs30Trainer():
                 v_mask = self.mask.expand_as(label[:, 0])
                 loss = self.loss_fn(curr_state[v_mask], label[:, 0][v_mask])
 
-                combined_loss += loss.item()
+                total_loss += loss.item()
                 step_loss += loss.item()
 
                 # calculate rollout loss
-                with torch.no_grad():
-                    for j in range(1, self.dls[0].dataset.rollout - 1):
-                        curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
-                        curr_state = self.model(curr_state)
+                for j in range(1, self.dls[0].dataset.rollout - 1):
+                    curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
+                    curr_state = self.model(curr_state)
 
                 curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
                 curr_state = self.model(curr_state)
@@ -136,9 +141,8 @@ class Pactcs30Trainer():
                 v_mask = self.mask.expand_as(label[:, 1])
                 loss = self.loss_fn(curr_state[v_mask], label[:, 1][v_mask])
 
-                combined_loss += loss.item()
+                total_loss += loss.item()
                 rollout_loss += loss.item()
-                total_loss += combined_loss
 
             step_loss /= no_batches
             rollout_loss /= no_batches
@@ -148,7 +152,7 @@ class Pactcs30Trainer():
                 curr_state, label, metadata = next(iter(self.dls[1]))
                 curr_state = curr_state.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
-                metadata = metadata.to(self.device,non_blocking=True)
+                metadata = metadata.to(self.device, non_blocking=True)
 
                 step = torch.cat([curr_state, metadata[:, 0]], dim=1)
                 step = self.model(step)

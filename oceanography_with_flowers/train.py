@@ -57,15 +57,17 @@ def main(model_path, data_path):
     width = data_cfg.width
     height = data_cfg.height
 
+    project_name = model_cfg.project_name
+    model_name = model_cfg.model_name
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
-    project_name = model_cfg.project_name
+    acc_steps = model_cfg.acc_steps
     
-    match project_name:
+    match model_name:
         case "flower":
             model = instantiate(model_cfg.model, spatial_resolution=(width+2, height+4)).to(device)
             pad = (1, 2)
-        case "cn_unet":
+        case "cnunet":
             model = instantiate(model_cfg.model).to(device)
             pad = (5, 2)
         case _:
@@ -101,8 +103,8 @@ def main(model_path, data_path):
             )
         )
 
-    total_steps = len(dls[0]) * epochs
-    warmup_steps = int(total_steps * 0.1)
+    total_steps = math.ceil(len(dls[0]) * epochs / acc_steps)
+    warmup_steps = math.ceil(total_steps * 0.05)
     decay_steps = total_steps - warmup_steps
     logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
 
@@ -134,6 +136,7 @@ def main(model_path, data_path):
         optimizer,
         scheduler,
         epochs,
+        acc_steps,
         device, 
         pred_vars, 
         rollout
