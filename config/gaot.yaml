@@ -1,0 +1,38 @@
+project_name: "gaot"
+model_name: "gaot"
+epochs: 5
+batch_size: 4
+acc_steps: 4
+
+model:
+  name: "gaot"
+  latent_tokens_size: [128, 128]
+  dim_in: 13
+  dim_out: 10
+  args:
+    magno:
+      hidden_size: 128
+    transformer:
+      patch_size: 8
+      hidden_size: 512
+      num_layers: 5
+
+loss_fn:
+  _target_: torch.nn.MSELoss
+  
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 8.0e-4
+  weight_decay: 1.0e-5
+
+warmup_scheduler:
+  _target_: torch.optim.lr_scheduler.LinearLR
+  start_factor: 0.01
+  end_factor: 1.0
+
+decay_scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
+  eta_min: 5.0e-5
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.SequentialLR

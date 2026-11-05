@@ -19,6 +19,7 @@ loss_fn:
 optimizer:
   _target_: torch.optim.AdamW
   lr: 1.0e-3
+  weight_decay: 1.0e-2
 
 warmup_scheduler:
   _target_: torch.optim.lr_scheduler.LinearLR
