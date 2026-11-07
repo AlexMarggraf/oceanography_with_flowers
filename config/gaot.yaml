@@ -6,7 +6,7 @@ acc_steps: 4
 
 model:
   name: "gaot"
-  latent_tokens_size: [128, 128]
+  latent_tokens_size: [16, 16]
   dim_in: 13
   dim_out: 10
   args:
@@ -14,8 +14,8 @@ model:
       hidden_size: 128
     transformer:
       patch_size: 8
-      hidden_size: 512
-      num_layers: 5
+      hidden_size: 448
+      num_layers: 4
 
 loss_fn:
   _target_: torch.nn.MSELoss

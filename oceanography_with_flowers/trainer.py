@@ -31,7 +31,8 @@ class Pactcs30Trainer():
         acc_steps,
         device, 
         pred_vars, 
-        rollout
+        rollout,
+        gaot=False
     ):
         self.model = model
         self.dls = dls
@@ -44,28 +45,35 @@ class Pactcs30Trainer():
         self.device = device
         self.pred_vars = pred_vars
         self.rollout = rollout
+        self.gaot=gaot
         self.first_pass = True
+
+        if gaot:
+            self.latent_grid = self.dls[0].dataset.get_latent_grid().to(self.device, non_blocking=True)
+            self.real_grid = self.dls[0].dataset.get_real_grid().to(self.device, non_blocking=True)
 
     def train_model(self):
         total_loss = 0
         step_loss = 0
         rollout_loss = 0
         no_batches = len(self.dls[0])
+
         self.model.train()
 
         for i, (curr_state, label, metadata) in enumerate(self.dls[0]):
-            self.optimizer.zero_grad(set_to_none=True)
-            
             curr_state = curr_state.to(self.device, non_blocking=True)
             label = label.to(self.device, non_blocking=True)
             metadata = metadata.to(self.device, non_blocking=True)
-            
-            # calculate one step loss
-            curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
-            curr_state = self.model(curr_state)
 
-            v_mask = self.mask.expand_as(label[:, 0])
-            loss = self.loss_fn(curr_state[v_mask], label[:, 0][v_mask])
+            if self.gaot:
+                curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
+                curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+            else:
+                curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
+                curr_state = self.model(curr_state)
+
+            mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
+            loss = self.loss_fn(curr_state[mask], label[:, 0][mask])
             loss /= self.acc_steps
 
             total_loss += loss.item()
@@ -74,22 +82,34 @@ class Pactcs30Trainer():
             loss.backward()
 
             if self.first_pass:
-                logging.info(f"rollout state shape: {curr_state.shape}")
-                logging.info(f"rollout label shape: {label.shape}")
-                logging.info(f"rollout metadata shape: {metadata.shape}")
+                if self.gaot:
+                    logging.info(f"latent grid shape: {self.latent_grid.shape}")
+                    logging.info(f"real grid shape: {self.real_grid.shape}")
+
+                logging.info(f"state shape: {curr_state.shape}")
+                logging.info(f"label shape: {label.shape}")
+                logging.info(f"metadata shape: {metadata.shape}")
+                
                 self.first_pass = False
 
             # calculate rollout loss
             with torch.no_grad():
                 for j in range(1, self.dls[0].dataset.rollout - 1):
-                    curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
-                    curr_state = self.model(curr_state)
+                    if self.gaot:
+                        curr_state = torch.cat([curr_state, metadata[:, j]], dim=-1)
+                        curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                    else:
+                        curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
+                        curr_state = self.model(curr_state)
 
-            curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
-            curr_state = self.model(curr_state)
+            if self.gaot:
+                curr_state = torch.cat([curr_state, metadata[:, -1]], dim=-1)
+                curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+            else:
+                curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
+                curr_state = self.model(curr_state)
 
-            v_mask = self.mask.expand_as(label[:, 1])
-            loss = self.loss_fn(curr_state[v_mask], label[:, 1][v_mask])
+            loss = self.loss_fn(curr_state[mask], label[:, 1][mask])
             loss /= self.acc_steps
 
             total_loss += loss.item()
@@ -99,6 +119,7 @@ class Pactcs30Trainer():
 
             if (i+1) % self.acc_steps == 0 or (i+1) == no_batches:
                 self.optimizer.step()
+                self.optimizer.zero_grad(set_to_none=True)
                 self.scheduler.step()
 
         step_loss = step_loss * self.acc_steps / no_batches
@@ -119,27 +140,31 @@ class Pactcs30Trainer():
                 curr_state = curr_state.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device, non_blocking=True)
-                
-                # calculate one step loss
-                curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
-                curr_state = self.model(curr_state)
 
-                v_mask = self.mask.expand_as(label[:, 0])
-                loss = self.loss_fn(curr_state[v_mask], label[:, 0][v_mask])
+                if self.gaot:
+                    curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
+                    curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                else:
+                    curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
+                    curr_state = self.model(curr_state)
+
+                mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
+                loss = self.loss_fn(curr_state[mask], label[:, 0][mask])
 
                 total_loss += loss.item()
                 step_loss += loss.item()
 
                 # calculate rollout loss
-                for j in range(1, self.dls[0].dataset.rollout - 1):
-                    curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
-                    curr_state = self.model(curr_state)
+                with torch.no_grad():
+                    for j in range(1, self.dls[1].dataset.rollout):
+                        if self.gaot:
+                            curr_state = torch.cat([curr_state, metadata[:, j]], dim=-1)
+                            curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                        else:
+                            curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
+                            curr_state = self.model(curr_state)
 
-                curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
-                curr_state = self.model(curr_state)
-
-                v_mask = self.mask.expand_as(label[:, 1])
-                loss = self.loss_fn(curr_state[v_mask], label[:, 1][v_mask])
+                loss = self.loss_fn(curr_state[mask], label[:, 1][mask])
 
                 total_loss += loss.item()
                 rollout_loss += loss.item()
@@ -154,42 +179,51 @@ class Pactcs30Trainer():
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device, non_blocking=True)
 
-                step = torch.cat([curr_state, metadata[:, 0]], dim=1)
-                step = self.model(step)
+                if self.gaot:
+                    curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
+                    step = self.model(self.latent_grid, self.real_grid, curr_state)
+                else:
+                    curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
+                    step = self.model(curr_state)
+
                 rollout = step.clone()
 
                 for i in range(1, self.dls[1].dataset.rollout):
-                    rollout = torch.cat([rollout, metadata[:, i]], dim=1)
-                    rollout = self.model(rollout)
+                    if self.gaot:
+                        rollout = torch.cat([rollout, metadata[:, j]], dim=-1)
+                        rollout = self.model(self.latent_grid, self.real_grid, rollout)
+                    else:
+                        rollout = torch.cat([rollout, metadata[:, j]], dim=1)
+                        rollout = self.model(rollout)
 
-                step = self.dls[0].dataset.tensor_to_dataset(step[0].detach().cpu(), self.pred_vars)
-                step_label = self.dls[0].dataset.tensor_to_dataset(label[0, 0].detach().cpu(), self.pred_vars)
+                step = self.dls[1].dataset.tensor_to_dataset(step[0].detach().cpu(), self.pred_vars)
+                step_label = self.dls[1].dataset.tensor_to_dataset(label[0, 0].detach().cpu(), self.pred_vars)
 
-                rollout = self.dls[0].dataset.tensor_to_dataset(rollout[0].detach().cpu(), self.pred_vars)
-                rollout_label = self.dls[0].dataset.tensor_to_dataset(label[0, 1].detach().cpu(), self.pred_vars)
+                rollout = self.dls[1].dataset.tensor_to_dataset(rollout[0].detach().cpu(), self.pred_vars)
+                rollout_label = self.dls[1].dataset.tensor_to_dataset(label[0, 1].detach().cpu(), self.pred_vars)
 
-                step_scales = self.dls[0].dataset.plot_dataset(
+                step_scales = self.dls[1].dataset.plot_dataset(
                     step_label,
                     f"{img_path}/step_label",
                     self.pred_vars,
                     return_scales=True
                 )
 
-                self.dls[0].dataset.plot_dataset(
+                self.dls[1].dataset.plot_dataset(
                     step,
                     f"{img_path}/step_pred",
                     self.pred_vars,
                     scales=step_scales
                 )
 
-                rollout_scales = self.dls[0].dataset.plot_dataset(
+                rollout_scales = self.dls[1].dataset.plot_dataset(
                     rollout_label, 
                     f"{img_path}/rollout_label", 
                     self.pred_vars, 
                     return_scales=True
                 )
 
-                self.dls[0].dataset.plot_dataset(
+                self.dls[1].dataset.plot_dataset(
                     rollout, 
                     f"{img_path}/rollout_pred", 
                     self.pred_vars, 

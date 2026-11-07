@@ -8,6 +8,7 @@ import torch
 from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from einops import repeat, rearrange
 import logging
 
 class Pactcs30Dataset(Dataset):
@@ -31,11 +32,15 @@ class Pactcs30Dataset(Dataset):
         rollout=1,
         keep_raw=["mask_rho", "angle"],
         timespan=[2010],
-        depth=1
+        depth=1,
+        grid=True,
+        latent_dim=(128, 128)
     ):
         self.delta = delta
         self.rollout = rollout
         self.pad = pad
+        self.grid = grid
+        self.latent_dim = latent_dim
         logging.info(f"delta: {delta}")
 
         self.mean = dict()
@@ -59,25 +64,64 @@ class Pactcs30Dataset(Dataset):
         self.len = dataset.sizes["time"]
         self.data = [None] * self.len
 
-        self.coast_mask = torch.from_numpy(dataset["mask_rho"].values).unsqueeze(0)
+        self.coast_mask = torch.from_numpy(dataset["mask_rho"].values)
+        if grid:
+            # shape should be [Rollout, Channel, coast_mask.shape]
+            self.bool_coast_mask = self.coast_mask.bool()
+            self.coast_mask = self.coast_mask.expand(rollout, 1, *self.coast_mask.shape)
+        else:
+            self.bool_coast_mask = self.coast_mask.flatten().bool()
+            self.coast_mask = repeat(self.coast_mask, "w h -> r (w h) c", r=rollout, c=1)
+
+        logging.info(f"bool coast mask shape: {self.bool_coast_mask.shape}")
         logging.info(f"coast mask shape: {self.coast_mask.shape}")
 
-        # positional encoding because data is on a curvilinear grid
-        h_xi = torch.from_numpy(dataset["dx"].values)
-        h_eta = torch.from_numpy(dataset["dy"].values)
-        
-        cos_angle = torch.cos(torch.from_numpy(dataset["angle"].values))
-        sin_angle = torch.sin(torch.from_numpy(dataset["angle"].values))
+        if grid:
+            # positional encoding because data is on a curvilinear grid
+            h_xi = torch.from_numpy(dataset["dx"].values)
+            h_eta = torch.from_numpy(dataset["dy"].values)
+            
+            cos_angle = torch.cos(torch.from_numpy(dataset["angle"].values))
+            sin_angle = torch.sin(torch.from_numpy(dataset["angle"].values))
 
-        self.positional = torch.stack(
-            [
-                h_xi * cos_angle,
-                h_xi * sin_angle,
-                -h_eta * sin_angle,
-                h_eta * cos_angle,
-            ]
-        )
-        logging.info(f"positional encodings shape: {self.positional.shape}")
+            self.positional = torch.stack(
+                [
+                    h_xi * cos_angle,
+                    h_xi * sin_angle,
+                    -h_eta * sin_angle,
+                    h_eta * cos_angle,
+                ]
+            )
+
+            # shape should be [Rollout, Channel, Width, Height]
+            self.positional = self.positional.expand(rollout, *self.positional.shape)
+            logging.info(f"positional encodings shape: {self.positional.shape}")
+        else:
+            x_latent_steps = torch.linspace(-1, 1, latent_dim[0])
+            y_latent_steps = torch.linspace(-1, 1, latent_dim[1])
+
+            x_latent_grid, y_latent_grid = torch.meshgrid(x_latent_steps, y_latent_steps, indexing="ij")
+            x_latent_grid = x_latent_grid.flatten()
+            y_latent_grid = y_latent_grid.flatten()
+
+            self.latent_grid = torch.stack([x_latent_grid, y_latent_grid], dim=-1)
+
+            lon_min = np.min(dataset["lon_rho"])
+            lon_max = np.max(dataset["lon_rho"])
+            lat_min = np.min(dataset["lat_rho"])
+            lat_max = np.max(dataset["lat_rho"])
+
+            lon_normal = 2 * (dataset["lon_rho"] - lon_min) / (lon_max - lon_min) - 1
+            lat_normal = 2 * (dataset["lat_rho"] - lat_min) / (lat_max - lat_min) - 1
+            x_real_grid = torch.from_numpy(lon_normal.values)
+            y_real_grid = torch.from_numpy(lat_normal.values)
+            x_real_grid = x_real_grid.flatten()
+            y_real_grid = y_real_grid.flatten()
+
+            self.real_grid = torch.stack([x_real_grid, y_real_grid], dim=-1)
+
+            logging.info(f"latent grid shape: {self.latent_grid.shape}")
+            logging.info(f"real grid shape: {self.real_grid.shape}")
 
         # dx and dy shouldn't be in keep_raw because they should be normalized
         exclude = keep_raw + ["dx", "dy"]
@@ -85,10 +129,17 @@ class Pactcs30Dataset(Dataset):
 
         row = dataset.sizes["eta_rho"]
         col = dataset.sizes["xi_rho"]
-        
-        def store_tensor(idx, row=row, col=col):
+
+        if not self.grid:
+            self.original_dim = (row, col)
+
+        def store_tensor(idx):
             datapoint = dataset.isel(time=idx)
             base_time = torch.full((row, col), 2*torch.pi*datapoint["time"].item())
+
+            if not grid:
+                base_time = base_time.flatten()
+
             sin_t = torch.sin(base_time)
             cos_t = torch.cos(base_time)
 
@@ -96,67 +147,61 @@ class Pactcs30Dataset(Dataset):
                 logging.info(f"time encoding shape: {base_time.shape}")
 
             features = [sin_t, cos_t]
+            
+            if grid:
+                for v in feature_vars:
+                    features.append(torch.from_numpy(datapoint[v].values))
+            else:
+                for v in feature_vars:
+                    features.append(torch.from_numpy(datapoint[v].values).flatten())
 
-            for v in feature_vars:
-                features.append(torch.from_numpy(datapoint[v].values))
-
-            self.data[idx] = torch.stack(features)
+            self.data[idx] = torch.stack(features, dim=-1)
 
             if idx == 0:
                 logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
 
-        jobs = [i for i in range(self.len)]
-
         # probably not nessecary
         with ThreadPoolExecutor((os.cpu_count() or 1)) as executor:
-            list(executor.map(store_tensor, jobs))
+            list(executor.map(store_tensor, [i for i in range(self.len)]))
             
     def __len__(self):
         # calculate flying len to make dataset work for rollout and one step prediction
         return self.len - (self.rollout * self.delta)
         
     def __getitem__(self, idx):
-        if self.rollout == 1:
-            feature = self.data[idx]
-            feature = torch.cat(
-                [
-                    self.coast_mask,
-                    self.positional,
-                    feature
-                ], dim=0
-            )
+        goal_idx = idx + self.delta * self.rollout
 
-            # first two entries are time channels which we dont need
-            label = self.data[idx+self.delta][2:]
-            return feature, label
-        elif self.rollout > 1:
-            goal_idx = idx + self.delta * self.rollout
-
+        if self.grid:
             feature = self.data[idx][2:]
             label = torch.stack([self.data[idx + self.delta], self.data[goal_idx]])[:, 2:]
             meta_steps = torch.arange(idx, goal_idx, self.delta)
 
             metadata = torch.stack([self.data[i] for i in meta_steps])[:, :2]
-
-            # adjust shape such that i can cat with metadata
-            coast_mask = self.coast_mask.unsqueeze(0).expand(self.rollout, -1, -1, -1)
-            positional = self.positional.unsqueeze(0).expand(self.rollout, -1, -1, -1)
-
             metadata = torch.cat(
                 [
-                    coast_mask,
-                    positional,
+                    self.coast_mask,
+                    self.positional,
                     metadata
                 ], dim=1
             )
-
-            return feature, label, metadata
         else:
-            logging.error(f"rollout is {self.rollout} when it should be > 0")
-            return None
+            feature = self.data[idx][:, 2:]
+            label = torch.stack([self.data[idx + self.delta], self.data[goal_idx]])[:, :, 2:]
+            meta_steps = torch.arange(idx, goal_idx, self.delta)
+
+            metadata = torch.stack([self.data[i] for i in meta_steps])[:, :, :2]
+            metadata = torch.cat([self.coast_mask, metadata], dim=-1)
+            
+        return feature, label, metadata
 
     def get_mask(self):
-        return self.coast_mask.bool()
+        return self.bool_coast_mask
+    
+    def get_latent_grid(self):
+        return self.latent_grid
+    
+    def get_real_grid(self):
+        return self.real_grid
 
     def open_pactcs30(self, path, year=2010):
         """
@@ -309,6 +354,9 @@ class Pactcs30Dataset(Dataset):
         Returns:
             xarray.Dataset: Tensor represented as dataset
         """
+
+        if not self.grid:
+            tensor = rearrange(tensor, "(w h) c -> c w h", w=self.original_dim[0], h=self.original_dim[1])
     
         tensor_data = tensor.numpy()
         data_array = []

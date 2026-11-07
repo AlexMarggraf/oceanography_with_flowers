@@ -3,9 +3,10 @@ name = "oceanography_with_flowers"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12, <3.13"
 dependencies = [
     "cmocean>=4.0.3",
+    "dataclasses>=0.8",
     "einops>=0.8.2",
     "hydra-core>=1.3.7",
     "ipykernel>=7.3.0",
@@ -15,7 +16,11 @@ dependencies = [
     "omegaconf>=2.3.1",
     "pandas>=2.3.3",
     "pathlib>=1.0.1",
+    "rotary-embedding-torch>=0.9.1",
     "torch>=2.14.1",
+    "torch-scatter>=2.1.2",
+    "transformers>=5.20.2",
+    "typing>=3.10.0.0",
     "wandb>=0.30.0",
     "xarray>=2025.6.1",
     "xcmocean>=0.3.2",
@@ -33,3 +38,10 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "oceanography_with_flowers"
 module-root = ""
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+# Required to compile C++/CUDA extensions from source
+[tool.uv.extra-build-dependencies]
+torch-scatter = ["torch>=2.14.1"]

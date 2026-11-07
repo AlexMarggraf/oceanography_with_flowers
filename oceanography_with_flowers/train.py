@@ -17,10 +17,13 @@ from hydra.utils import instantiate
 from oceanography_with_flowers.model import (
     Pactcs30FNO,
     Flower,
-    CNUnet
+    CNUnet,
+    ScOT,
+    GAOT
 )
 from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
+from oceanography_with_flowers.gaot_config import ModelConfig
 
 class RealTimeStreamHandler(logging.StreamHandler):
     def __init__(self, stream=None):
@@ -43,6 +46,7 @@ def main(model_path, data_path):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cfg = OmegaConf.load(model_path)
     data_cfg = OmegaConf.load(data_path)
+    logging.info(f"device: {device}")
     logging.info(f"model config:\n{OmegaConf.to_yaml(model_cfg)}")
     logging.info(f"data config:\n{OmegaConf.to_yaml(data_cfg)}")
 
@@ -62,6 +66,11 @@ def main(model_path, data_path):
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
     acc_steps = model_cfg.acc_steps
+
+    pad = None
+    grid = True
+    gaot = False
+    latent_dim = None
     
     match model_name:
         case "flower":
@@ -70,12 +79,25 @@ def main(model_path, data_path):
         case "cnunet":
             model = instantiate(model_cfg.model).to(device)
             pad = (5, 2)
+        case "scot":
+            model = instantiate(model_cfg.model, spatial_resolution=(width+26, height+4)).to(device)
+            pad = (13, 2)
+        case "gaot":
+            # Adhering to build pipeline of original GAOT code
+            default = OmegaConf.structured(ModelConfig)
+            merged = OmegaConf.merge(default, model_cfg.model)
+            config = OmegaConf.to_object(merged)
+
+            model = GAOT(config=config).to(device)
+            grid = False
+            gaot = True
+            latent_dim = (model_cfg.model.latent_tokens_size[0], model_cfg.model.latent_tokens_size[1])
         case _:
             model = instantiate(model_cfg.model).to(device)
-            pad = None
 
     total_params = sum(p.numel() for p in model.parameters())
-    logging.info(f"model architecure:\n{model}")
+    # This will print 2000 lines for ScOT ;)
+    # logging.info(f"model architecure:\n{model}")
     logging.info(f"total parameters: {total_params:,}")
 
     loss_fn = instantiate(model_cfg.loss_fn)
@@ -96,7 +118,9 @@ def main(model_path, data_path):
                     pad,
                     delta=delta,
                     rollout=rollout,
-                    timespan=ts
+                    timespan=ts,
+                    grid=grid,
+                    latent_dim=latent_dim
                 ), 
                 batch_size=batch_size, 
                 shuffle=True
@@ -139,7 +163,8 @@ def main(model_path, data_path):
         acc_steps,
         device, 
         pred_vars, 
-        rollout
+        rollout,
+        gaot=gaot
     )
 
     trainer.train(
