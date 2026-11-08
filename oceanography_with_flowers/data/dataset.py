@@ -97,6 +97,9 @@ class Pactcs30Dataset(Dataset):
             self.positional = self.positional.expand(rollout, *self.positional.shape)
             logging.info(f"positional encodings shape: {self.positional.shape}")
         else:
+            angles = torch.from_numpy(dataset["angle"].values)
+            self.angles = repeat(angles, "w h -> r (w h) c", r=rollout, c=1)
+
             x_latent_steps = torch.linspace(-1, 1, latent_dim[0])
             y_latent_steps = torch.linspace(-1, 1, latent_dim[1])
 
@@ -151,11 +154,11 @@ class Pactcs30Dataset(Dataset):
             if grid:
                 for v in feature_vars:
                     features.append(torch.from_numpy(datapoint[v].values))
+                    self.data[idx] = torch.stack(features)
             else:
                 for v in feature_vars:
                     features.append(torch.from_numpy(datapoint[v].values).flatten())
-
-            self.data[idx] = torch.stack(features, dim=-1)
+                    self.data[idx] = torch.stack(features, dim=-1)
 
             if idx == 0:
                 logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
@@ -190,7 +193,13 @@ class Pactcs30Dataset(Dataset):
             meta_steps = torch.arange(idx, goal_idx, self.delta)
 
             metadata = torch.stack([self.data[i] for i in meta_steps])[:, :, :2]
-            metadata = torch.cat([self.coast_mask, metadata], dim=-1)
+            metadata = torch.cat(
+                [
+                    self.coast_mask,
+                    self.angles,
+                    metadata
+                ], dim=-1
+            )
             
         return feature, label, metadata
 

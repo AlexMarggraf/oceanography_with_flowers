@@ -1,6 +1,6 @@
 project_name: "scot"
 model_name: "scot"
-epochs: 5
+epochs: 20
 batch_size: 4
 acc_steps: 4
 

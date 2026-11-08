@@ -123,7 +123,7 @@ def main(model_path, data_path):
                     latent_dim=latent_dim
                 ), 
                 batch_size=batch_size, 
-                shuffle=True
+                shuffle=(i==0)
             )
         )
 

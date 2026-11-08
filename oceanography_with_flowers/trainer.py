@@ -68,11 +68,12 @@ class Pactcs30Trainer():
             if self.gaot:
                 curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
                 curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
             else:
                 curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
                 curr_state = self.model(curr_state)
+                mask = self.mask.expand_as(label[:, 0])
 
-            mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
             loss = self.loss_fn(curr_state[mask], label[:, 0][mask])
             loss /= self.acc_steps
 
@@ -133,10 +134,11 @@ class Pactcs30Trainer():
         step_loss = 0
         rollout_loss = 0
         no_batches = len(self.dls[1])
+
         self.model.eval()
 
         with torch.no_grad():
-            for i, (curr_state, label, metadata) in enumerate(self.dls[1]):
+            for (curr_state, label, metadata) in self.dls[1]:
                 curr_state = curr_state.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device, non_blocking=True)
@@ -144,25 +146,26 @@ class Pactcs30Trainer():
                 if self.gaot:
                     curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
                     curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                    mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
                 else:
                     curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
                     curr_state = self.model(curr_state)
+                    mask = self.mask.expand_as(label[:, 0])
 
-                mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
+    
                 loss = self.loss_fn(curr_state[mask], label[:, 0][mask])
 
                 total_loss += loss.item()
                 step_loss += loss.item()
 
                 # calculate rollout loss
-                with torch.no_grad():
-                    for j in range(1, self.dls[1].dataset.rollout):
-                        if self.gaot:
-                            curr_state = torch.cat([curr_state, metadata[:, j]], dim=-1)
-                            curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
-                        else:
-                            curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
-                            curr_state = self.model(curr_state)
+                for i in range(1, self.dls[1].dataset.rollout):
+                    if self.gaot:
+                        curr_state = torch.cat([curr_state, metadata[:, i]], dim=-1)
+                        curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                    else:
+                        curr_state = torch.cat([curr_state, metadata[:, i]], dim=1)
+                        curr_state = self.model(curr_state)
 
                 loss = self.loss_fn(curr_state[mask], label[:, 1][mask])
 
@@ -190,10 +193,10 @@ class Pactcs30Trainer():
 
                 for i in range(1, self.dls[1].dataset.rollout):
                     if self.gaot:
-                        rollout = torch.cat([rollout, metadata[:, j]], dim=-1)
+                        rollout = torch.cat([rollout, metadata[:, i]], dim=-1)
                         rollout = self.model(self.latent_grid, self.real_grid, rollout)
                     else:
-                        rollout = torch.cat([rollout, metadata[:, j]], dim=1)
+                        rollout = torch.cat([rollout, metadata[:, i]], dim=1)
                         rollout = self.model(rollout)
 
                 step = self.dls[1].dataset.tensor_to_dataset(step[0].detach().cpu(), self.pred_vars)

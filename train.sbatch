@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --job-name=gaot_test              #This is the name of your job
+#SBATCH --job-name=fno_test              #This is the name of your job
 #SBATCH --cpus-per-task=4                 #This is the number of cores reserved
 #SBATCH --mem-per-cpu=16G              #This is the memory reserved per core.
 
-#SBATCH --time=06:00:00        #This is the time that your task will run
-#SBATCH --qos=a100-6hours     #You will run in this queue
-#SBATCH --partition=a100
+#SBATCH --time=00:30:00        #This is the time that your task will run
+#SBATCH --qos=rtx4090-30min     #You will run in this queue
+#SBATCH --partition=rtx4090
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
 
@@ -35,4 +35,4 @@ export TORCHINDUCTOR_COMPILE_THREADS=1
 
 #add your command lines below
 #############################
-uv run oceanography_with_flowers/train.py --model-path config/gaot.yaml --data-path config/pactcs30.yaml
+uv run oceanography_with_flowers/train.py --model-path config/fno.yaml --data-path config/pactcs30.yaml

@@ -961,6 +961,7 @@ dependencies = [
     { name = "pathlib" },
     { name = "rotary-embedding-torch" },
     { name = "torch" },
+    { name = "torch-cluster" },
     { name = "torch-scatter" },
     { name = "transformers" },
     { name = "typing" },
@@ -986,6 +987,7 @@ requires-dist = [
     { name = "pathlib", specifier = ">=1.0.1" },
     { name = "rotary-embedding-torch", specifier = ">=0.9.1" },
     { name = "torch", specifier = ">=2.14.1" },
+    { name = "torch-cluster", specifier = ">=1.6.3" },
     { name = "torch-scatter", specifier = ">=2.1.2" },
     { name = "transformers", specifier = ">=5.20.2" },
     { name = "typing", specifier = ">=3.10.0.0" },
@@ -1614,6 +1616,15 @@ dependencies = [
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/fd/c470857d0dfc5d4c94430658b3eed60fd5292b0bf596a8aae7b9fd66d674/torch-2.14.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:23011fe29a99b591eabb3a31a25080c62e2c2f0690a3c798744e5489dae50451", size = 554618695, upload-time = "2026-09-30T17:53:06.8Z" },
 ]
+
+[[package]]
+name = "torch-cluster"
+version = "1.6.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/54/31/e7f7a28253cd907404eb652607613b35779140b326d15d0636511b7b9438/torch_cluster-1.6.3.tar.gz", hash = "sha256:78d5a930a5bbd0d8788df8c6d66addd68d6dd292fe3edb401e3dacba26308152", size = 54550, upload-time = "2023-10-12T06:52:43.728Z" }
 
 [[package]]
 name = "torch-scatter"

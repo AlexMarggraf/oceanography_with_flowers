@@ -1,21 +1,23 @@
 project_name: "gaot"
 model_name: "gaot"
-epochs: 5
+epochs: 20
 batch_size: 4
 acc_steps: 4
 
 model:
   name: "gaot"
-  latent_tokens_size: [16, 16]
-  dim_in: 13
+  latent_tokens_size: [128, 128]
+  dim_in: 14
   dim_out: 10
   args:
     magno:
-      hidden_size: 128
+      radius: 0.0165
+      hidden_size: 256
+      embedding_method: "pointnet"
     transformer:
-      patch_size: 8
-      hidden_size: 448
-      num_layers: 4
+      patch_size: 2
+      hidden_size: 480
+      num_layers: 5
 
 loss_fn:
   _target_: torch.nn.MSELoss
