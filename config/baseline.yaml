@@ -1,6 +1,6 @@
-path: "/scicore/home/dokman0000/GROUP/pactcs30/"
-data_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL", "dx", "dy", "angle", "mask_rho"]
-split: [2000, 2019, 2020]
+path: "/scicore/home/dokman0000/GROUP/pactcs30/" # path to data files
+data_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL", "dx", "dy", "angle", "mask_rho"] # all variables that need to be extracted from the dataset
+split: [2000, 2019, 2020] # yearly split of the training and validation data
 
 loss_fn:
   _target_: torch.nn.MSELoss

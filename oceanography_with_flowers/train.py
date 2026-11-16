@@ -36,7 +36,7 @@ class RealTimeStreamHandler(logging.StreamHandler):
 def main(model_path, data_path):
     """
     Build model from config file, load metadata from config file, and start training loop.
-    Fully modular, config file dictates hyper parameters and what model will be used in training.
+    Fully modular, config file dictates hyperparameters and what model will be used in training.
 
     Args:
         model_path (str): Path to model config file
@@ -60,6 +60,8 @@ def main(model_path, data_path):
     rollout = data_cfg.rollout
     width = data_cfg.width
     height = data_cfg.height
+    pad_x = data_cfg.pad_x
+    pad_y = data_cfg.pad_y
 
     project_name = model_cfg.project_name
     model_name = model_cfg.model_name
@@ -73,17 +75,11 @@ def main(model_path, data_path):
     latent_dim = None
     
     match model_name:
-        case "flower":
-            model = instantiate(model_cfg.model, spatial_resolution=(width+2, height+4)).to(device)
-            pad = (1, 2)
-        case "cnunet":
-            model = instantiate(model_cfg.model).to(device)
-            pad = (5, 2)
-        case "scot":
-            model = instantiate(model_cfg.model, spatial_resolution=(width+26, height+4)).to(device)
-            pad = (13, 2)
+        case "flower" | "cnunet" | "scot":
+            model = instantiate(model_cfg.model, spatial_resolution=(width + pad_x, height + pad_y)).to(device)
+            pad = (2*pad_x, 2*pad_y)
         case "gaot":
-            # Adhering to build pipeline of original GAOT code
+            # adhereing to build pipeline of original GAOT code
             default = OmegaConf.structured(ModelConfig)
             merged = OmegaConf.merge(default, model_cfg.model)
             config = OmegaConf.to_object(merged)
@@ -96,7 +92,7 @@ def main(model_path, data_path):
             model = instantiate(model_cfg.model).to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
-    # This will print 2000 lines for ScOT ;)
+    # Uncomment if you want to see the model architecture, output can be very long
     # logging.info(f"model architecure:\n{model}")
     logging.info(f"total parameters: {total_params:,}")
 
@@ -115,6 +111,7 @@ def main(model_path, data_path):
                 Pactcs30Dataset(
                     path, 
                     data_vars,
+                    pred_vars,
                     pad,
                     delta=delta,
                     rollout=rollout,
@@ -123,12 +120,12 @@ def main(model_path, data_path):
                     latent_dim=latent_dim
                 ), 
                 batch_size=batch_size, 
-                shuffle=(i==0)
+                shuffle=(i==0) # shuffle only training dataloader but not validation dataloader
             )
         )
 
     total_steps = math.ceil(len(dls[0]) * epochs / acc_steps)
-    warmup_steps = math.ceil(total_steps * 0.05)
+    warmup_steps = math.ceil(total_steps * 0.05) # 5% of total epochs are warmup
     decay_steps = total_steps - warmup_steps
     logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
 
@@ -161,8 +158,7 @@ def main(model_path, data_path):
         scheduler,
         epochs,
         acc_steps,
-        device, 
-        pred_vars, 
+        device,
         rollout,
         gaot=gaot
     )

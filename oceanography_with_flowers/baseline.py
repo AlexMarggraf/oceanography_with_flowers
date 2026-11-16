@@ -9,7 +9,7 @@ from oceanography_with_flowers.data.dataset import Pactcs30Dataset
 
 def one_step_baseline(baseline_path):
     """
-    Find baseline for any train/val/test split
+    Find persistance baseline for any train/test split
 
     Args:
         baseline_path (str): Path to baseline config file
@@ -59,6 +59,12 @@ def one_step_baseline(baseline_path):
     print(f"Test Data:       {losses[2]:.6f}")
 
 def rollout_baseline(baseline_path):
+    """
+    Find climate baseline for any train/test split
+
+    Args:
+        baseline_path (str): Path to baseline config file
+    """
     bl_cfg = OmegaConf.load(baseline_path)
 
     path = bl_cfg.path
@@ -89,8 +95,10 @@ def rollout_baseline(baseline_path):
             pred = torch.zeros(label.shape)
 
             for k in range(climatology_steps):
+                # get the values of the same day each year
                 past_state, _ = ds[0][curr_day]
                 pred += past_state[-C:]
+                
                 if k % 4 == 0:
                     curr_day += 366
                 else:

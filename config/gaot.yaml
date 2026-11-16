@@ -1,19 +1,19 @@
-project_name: "gaot"
+project_name: "test" # the weights and biases project name
 model_name: "gaot"
-epochs: 20
+epochs: 5
 batch_size: 4
-acc_steps: 4
+acc_steps: 4 # steps for gradient accumulation
 
 model:
   name: "gaot"
-  latent_tokens_size: [128, 128]
+  latent_tokens_size: [128, 128] # how many latent gridpoints to use, higher means finer details in final image
   dim_in: 14
   dim_out: 10
   args:
     magno:
-      radius: 0.0165
+      radius: 0.0165 # how large the radius is for the geometric embeddings, make sure to get full coverage of the data
       hidden_size: 256
-      embedding_method: "pointnet"
+      embedding_method: "pointnet" # use pointnet or geometric embeddings
     transformer:
       patch_size: 2
       hidden_size: 480
@@ -24,12 +24,12 @@ loss_fn:
   
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 8.0e-4
+  lr: 1.0e-3
   weight_decay: 1.0e-5
 
 warmup_scheduler:
   _target_: torch.optim.lr_scheduler.LinearLR
-  start_factor: 0.01
+  start_factor: 0.8
   end_factor: 1.0
 
 decay_scheduler:

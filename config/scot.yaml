@@ -1,8 +1,10 @@
-project_name: "scot"
+project_name: "rollout" # the weights and biases project name
 model_name: "scot"
 epochs: 20
 batch_size: 4
-acc_steps: 4
+acc_steps: 4 # steps for gradient accumulation
+pad_x: 13 # padding in x dimension
+pad_y: 2 # padding in y dimension
 
 model:
   _target_: __main__.ScOT

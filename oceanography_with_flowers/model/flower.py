@@ -1,4 +1,11 @@
 """
+This implementation was obtained from:
+
+    Muser, T., Spitzer, A., Lassas, M., de Hoop, M. V., & Dokmanić, I. (2026). Flowers: A Warp Drive for Neural PDE Solvers.
+    source: https://github.com/t-muser/flowers/blob/master/flower_standalone.py
+
+If you want to use this implementation, please cite the original work above.
+
 This file contains the complete Flower model with all dependencies inlined, for drag-and-drop(-and-import) use in other projects.
 
 Default arguments match configs/models/flower.yaml:

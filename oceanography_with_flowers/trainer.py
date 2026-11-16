@@ -7,17 +7,19 @@ from pathlib import Path
 class Pactcs30Trainer():
     """
     A trainer for the pactcs30 dataset which trains and validates the data.
+    The trainer optimizes for both one-step and rollout prediction.
+    Images are stored in ./img
 
     Args:
         model (nn.Module): Model used for training
-        train_dl (Dataloader): Dataloader of the training data
-        val_dl (Dataloader): Dataloader of the validation data
+        dls ([Dataloader]): Training and Validation dataloaders
         loss_fn (Callable): Loss function to be used in training and validation
-        optimizer: Optimizer used during training
-        scheduler: Scheduler used during training
-        epochs: Epochs
-        device: The device used for training
-        pred_vars: The variables that are predicted by the model
+        optimizer (torch.optim.Optimizer): Optimizer used during training
+        scheduler (torch.optim.lr_scheduler.LRScheduler): Scheduler used during training
+        epochs (int): Epochs
+        device (torch.device): The device used for training
+        rollout (int): How many rollout steps to do
+        gaot (bool): Whether the GAOT model is used
     """
 
     def __init__(
@@ -30,7 +32,6 @@ class Pactcs30Trainer():
         epochs,
         acc_steps,
         device, 
-        pred_vars, 
         rollout,
         gaot=False
     ):
@@ -43,7 +44,6 @@ class Pactcs30Trainer():
         self.epochs = epochs
         self.acc_steps = acc_steps
         self.device = device
-        self.pred_vars = pred_vars
         self.rollout = rollout
         self.gaot=gaot
         self.first_pass = True
@@ -65,6 +65,7 @@ class Pactcs30Trainer():
             label = label.to(self.device, non_blocking=True)
             metadata = metadata.to(self.device, non_blocking=True)
 
+            # One step prediction
             if self.gaot:
                 curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
                 curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
@@ -93,7 +94,7 @@ class Pactcs30Trainer():
                 
                 self.first_pass = False
 
-            # calculate rollout loss
+            # create noise for push-forward trick
             with torch.no_grad():
                 for j in range(1, self.dls[0].dataset.rollout - 1):
                     if self.gaot:
@@ -103,6 +104,7 @@ class Pactcs30Trainer():
                         curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
                         curr_state = self.model(curr_state)
 
+            # rollout prediction
             if self.gaot:
                 curr_state = torch.cat([curr_state, metadata[:, -1]], dim=-1)
                 curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
@@ -143,6 +145,7 @@ class Pactcs30Trainer():
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device, non_blocking=True)
 
+                # one-step prediction
                 if self.gaot:
                     curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
                     curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
@@ -158,7 +161,7 @@ class Pactcs30Trainer():
                 total_loss += loss.item()
                 step_loss += loss.item()
 
-                # calculate rollout loss
+                # rollout prediction
                 for i in range(1, self.dls[1].dataset.rollout):
                     if self.gaot:
                         curr_state = torch.cat([curr_state, metadata[:, i]], dim=-1)
@@ -176,21 +179,26 @@ class Pactcs30Trainer():
             rollout_loss /= no_batches
             total_loss /= no_batches
 
+            # this is only for plotting the predictions for the best validation loss
             if total_loss < best_loss:
                 curr_state, label, metadata = next(iter(self.dls[1]))
                 curr_state = curr_state.to(self.device, non_blocking=True)
                 label = label.to(self.device, non_blocking=True)
                 metadata = metadata.to(self.device, non_blocking=True)
 
+                # one-step prediction
                 if self.gaot:
                     curr_state = torch.cat([curr_state, metadata[:, 0]], dim=-1)
                     step = self.model(self.latent_grid, self.real_grid, curr_state)
+                    mask = self.mask.view(1, -1, 1).expand_as(label[:, 0])
                 else:
                     curr_state = torch.cat([curr_state, metadata[:, 0]], dim=1)
                     step = self.model(curr_state)
+                    mask = self.mask.expand_as(label[:, 0])
 
                 rollout = step.clone()
 
+                # rollout prediction
                 for i in range(1, self.dls[1].dataset.rollout):
                     if self.gaot:
                         rollout = torch.cat([rollout, metadata[:, i]], dim=-1)
@@ -199,37 +207,33 @@ class Pactcs30Trainer():
                         rollout = torch.cat([rollout, metadata[:, i]], dim=1)
                         rollout = self.model(rollout)
 
-                step = self.dls[1].dataset.tensor_to_dataset(step[0].detach().cpu(), self.pred_vars)
-                step_label = self.dls[1].dataset.tensor_to_dataset(label[0, 0].detach().cpu(), self.pred_vars)
+                step = self.dls[1].dataset.tensor_to_dataset(step[0].detach().cpu())
+                step_label = self.dls[1].dataset.tensor_to_dataset(label[0, 0].detach().cpu())
 
-                rollout = self.dls[1].dataset.tensor_to_dataset(rollout[0].detach().cpu(), self.pred_vars)
-                rollout_label = self.dls[1].dataset.tensor_to_dataset(label[0, 1].detach().cpu(), self.pred_vars)
+                rollout = self.dls[1].dataset.tensor_to_dataset(rollout[0].detach().cpu())
+                rollout_label = self.dls[1].dataset.tensor_to_dataset(label[0, 1].detach().cpu())
 
                 step_scales = self.dls[1].dataset.plot_dataset(
                     step_label,
                     f"{img_path}/step_label",
-                    self.pred_vars,
                     return_scales=True
                 )
 
                 self.dls[1].dataset.plot_dataset(
                     step,
                     f"{img_path}/step_pred",
-                    self.pred_vars,
                     scales=step_scales
                 )
 
                 rollout_scales = self.dls[1].dataset.plot_dataset(
                     rollout_label, 
                     f"{img_path}/rollout_label", 
-                    self.pred_vars, 
                     return_scales=True
                 )
 
                 self.dls[1].dataset.plot_dataset(
                     rollout, 
                     f"{img_path}/rollout_pred", 
-                    self.pred_vars, 
                     scales=rollout_scales
                 )
 
@@ -237,7 +241,7 @@ class Pactcs30Trainer():
 
     def train(self, project_name, config, weight_path, wandb_path):
         """
-        Train and validate the model, as well as log loss in weights and biases.
+        Train and validate the model, as well as log loss using weights and biases.
 
         Args:
             project_name (str): Name of the weights and biases project

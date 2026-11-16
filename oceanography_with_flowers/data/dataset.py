@@ -13,20 +13,27 @@ import logging
 
 class Pactcs30Dataset(Dataset):
     """
-    Dataset for the Pactcs30 20 year hindcast.
+    Dataset for the ROMS Pactcs30 20 year hindcast.
 
     Args:
         path (str): Path to the stored data
-        data_vars ([str]): All variables of the dataset that are needed for prediction
+        data_vars ([str]): All variables needed from the dataset
+        pred_vars ([str]): All variables that should be predicted
+        pad ((int, int)) | None: How much the image needs to be padded
+        delta int: How big one prediction step is
+        rollout: How many rollout steps are made
         keep_raw ([str]): All variables that shouldn't be normalized
         timespan ([int]): What years should be loaded
         depth (int): Amount of depth levels
+        grid (bool): Whether the data should be stored as grid or graph
+        latent_dim ((int, int)): Dimensions of the latent grid when gaot is used
     """
 
     def __init__(
         self,
         path,
         data_vars,
+        pred_vars,
         pad,
         delta=5,
         rollout=1,
@@ -36,6 +43,7 @@ class Pactcs30Dataset(Dataset):
         grid=True,
         latent_dim=(128, 128)
     ):
+        self.pred_vars = pred_vars
         self.delta = delta
         self.rollout = rollout
         self.pad = pad
@@ -59,19 +67,26 @@ class Pactcs30Dataset(Dataset):
         self.xi_rho = dataset["xi_rho"]
         self.lat_rho = dataset["lat_rho"]
         self.lon_rho = dataset["lon_rho"]
-        
-        # -delta because last delta days have no next simulation step
-        self.len = dataset.sizes["time"]
-        self.data = [None] * self.len
 
+        self.len = dataset.sizes["time"]
         self.coast_mask = torch.from_numpy(dataset["mask_rho"].values)
+
         if grid:
             # shape should be [Rollout, Channel, coast_mask.shape]
             self.bool_coast_mask = self.coast_mask.bool()
             self.coast_mask = self.coast_mask.expand(rollout, 1, *self.coast_mask.shape)
+
+            # time and data are stored seperately to prevent slicing
+            self.data = torch.empty((self.len, len(pred_vars), *self.coast_mask.shape[2:]))
+            self.time = torch.empty((self.len, 2, *self.coast_mask.shape[2:]))
         else:
+            # shape should be [Rollout, coast_mask.shape, Channel]
             self.bool_coast_mask = self.coast_mask.flatten().bool()
             self.coast_mask = repeat(self.coast_mask, "w h -> r (w h) c", r=rollout, c=1)
+
+            # time and data are stored seperately to prevent slicing
+            self.data = torch.empty((self.len, self.coast_mask.shape[1], len(pred_vars),))
+            self.time = torch.empty((self.len, self.coast_mask.shape[1], 2))
 
         logging.info(f"bool coast mask shape: {self.bool_coast_mask.shape}")
         logging.info(f"coast mask shape: {self.coast_mask.shape}")
@@ -97,9 +112,11 @@ class Pactcs30Dataset(Dataset):
             self.positional = self.positional.expand(rollout, *self.positional.shape)
             logging.info(f"positional encodings shape: {self.positional.shape}")
         else:
+            # rotation of dataset gridpoints
             angles = torch.from_numpy(dataset["angle"].values)
             self.angles = repeat(angles, "w h -> r (w h) c", r=rollout, c=1)
 
+            # latent gridpoints for gaot
             x_latent_steps = torch.linspace(-1, 1, latent_dim[0])
             y_latent_steps = torch.linspace(-1, 1, latent_dim[1])
 
@@ -109,6 +126,7 @@ class Pactcs30Dataset(Dataset):
 
             self.latent_grid = torch.stack([x_latent_grid, y_latent_grid], dim=-1)
 
+            # longitude and latitude grid for geometric embeddings
             lon_min = np.min(dataset["lon_rho"])
             lon_max = np.max(dataset["lon_rho"])
             lat_min = np.min(dataset["lat_rho"])
@@ -126,10 +144,6 @@ class Pactcs30Dataset(Dataset):
             logging.info(f"latent grid shape: {self.latent_grid.shape}")
             logging.info(f"real grid shape: {self.real_grid.shape}")
 
-        # dx and dy shouldn't be in keep_raw because they should be normalized
-        exclude = keep_raw + ["dx", "dy"]
-        feature_vars = [v for v in data_vars if v not in exclude]
-
         row = dataset.sizes["eta_rho"]
         col = dataset.sizes["xi_rho"]
 
@@ -140,67 +154,77 @@ class Pactcs30Dataset(Dataset):
             datapoint = dataset.isel(time=idx)
             base_time = torch.full((row, col), 2*torch.pi*datapoint["time"].item())
 
+            # sinusoidal encodings such that jan 1. is the same as dec 31.
+            if grid:
+                self.time[idx] = torch.stack(
+                    [
+                        torch.sin(base_time),
+                        torch.cos(base_time)
+                    ]
+                )
             if not grid:
                 base_time = base_time.flatten()
-
-            sin_t = torch.sin(base_time)
-            cos_t = torch.cos(base_time)
+                self.time[idx] = torch.stack(
+                    [
+                        torch.sin(base_time),
+                        torch.cos(base_time)
+                    ], dim=-1
+                )
 
             if idx == 0:
-                logging.info(f"time encoding shape: {base_time.shape}")
+                logging.info(f"time encoding shape: {self.time[0].shape}")
 
-            features = [sin_t, cos_t]
+            features = []
             
             if grid:
-                for v in feature_vars:
+                for v in pred_vars:
                     features.append(torch.from_numpy(datapoint[v].values))
-                    self.data[idx] = torch.stack(features)
+
+                self.data[idx] = torch.stack(features)
             else:
-                for v in feature_vars:
+                for v in pred_vars:
                     features.append(torch.from_numpy(datapoint[v].values).flatten())
-                    self.data[idx] = torch.stack(features, dim=-1)
+                
+                self.data[idx] = torch.stack(features, dim=-1)
 
             if idx == 0:
                 logging.info(f"First entry of dataset shape: {self.data[idx].shape}")
 
-        # probably not nessecary
         with ThreadPoolExecutor((os.cpu_count() or 1)) as executor:
             list(executor.map(store_tensor, [i for i in range(self.len)]))
             
     def __len__(self):
-        # calculate flying len to make dataset work for rollout and one step prediction
         return self.len - (self.rollout * self.delta)
         
     def __getitem__(self, idx):
         goal_idx = idx + self.delta * self.rollout
 
-        if self.grid:
-            feature = self.data[idx][2:]
-            label = torch.stack([self.data[idx + self.delta], self.data[goal_idx]])[:, 2:]
-            meta_steps = torch.arange(idx, goal_idx, self.delta)
+        # start point of prediction
+        feature = self.data[idx]
+        # label for first and last prediction
+        label = torch.stack([self.data[idx + self.delta], self.data[goal_idx]])
+        time_steps = torch.arange(idx, goal_idx, self.delta)
 
-            metadata = torch.stack([self.data[i] for i in meta_steps])[:, :2]
+        # nessecary time encodings needed during rollout prediction
+        time = torch.stack([self.time[i] for i in time_steps])
+
+        if self.grid:
             metadata = torch.cat(
                 [
                     self.coast_mask,
                     self.positional,
-                    metadata
+                    time
                 ], dim=1
             )
         else:
-            feature = self.data[idx][:, 2:]
-            label = torch.stack([self.data[idx + self.delta], self.data[goal_idx]])[:, :, 2:]
-            meta_steps = torch.arange(idx, goal_idx, self.delta)
-
-            metadata = torch.stack([self.data[i] for i in meta_steps])[:, :, :2]
             metadata = torch.cat(
                 [
                     self.coast_mask,
                     self.angles,
-                    metadata
+                    time
                 ], dim=-1
             )
-            
+                
         return feature, label, metadata
 
     def get_mask(self):
@@ -269,11 +293,14 @@ class Pactcs30Dataset(Dataset):
         Args:
             dataset (xarray.Dataset): Dataset that's supposed to be cleaned
             data_vars ([str]): All variables to include from dataset
+            pad ((int, int)) | None: The amount of rows / collumns to pad the data to
+            keep_raw ([str]): All variables that should not be normalized
 
         Returns:
             xarray.Dataset: Cleaned data in dataset.
         """
 
+        # normalize time
         dataset["time"] = xr.where(
             dataset["time"].dt.is_leap_year,
             (dataset["time"].dt.dayofyear.values - 1) / 365,
@@ -281,13 +308,14 @@ class Pactcs30Dataset(Dataset):
         )
         logging.info(f"first and last time value {dataset["time"][0].values} / {dataset["time"][-1].values}")
 
+        # clip values below 0 to avoid plotting errors
         dataset["NO3"] = dataset["NO3"].clip(min=0)
         dataset["TOT_CHL"] = dataset["TOT_CHL"].clip(min=0)
         logging.info(f"min NO3 and TOT_CHL values: {np.nanmin(dataset["NO3"])} / {np.nanmin(dataset["TOT_CHL"])}")
         
         # linear interpolation to go from u to rho grid
-        u_first = dataset["u"].isel(xi_u=slice(0,-1))
-        u_last = dataset["u"].isel(xi_u=slice(1,None))
+        u_first = dataset["u"].isel(xi_u=slice(0, -1))
+        u_last = dataset["u"].isel(xi_u=slice(1, None))
         u_first["xi_u"] = u_first["xi_u"] + 1
         
         u_rho = 0.5 * (u_first + u_last)
@@ -297,8 +325,8 @@ class Pactcs30Dataset(Dataset):
         logging.info(f"interpolated u shape: {u_rho.shape}")
     
         # linear interploation to go from v to rho grid
-        v_first = dataset["v"].isel(eta_v=slice(0,-1))
-        v_last = dataset["v"].isel(eta_v=slice(1,None))
+        v_first = dataset["v"].isel(eta_v=slice(0, -1))
+        v_last = dataset["v"].isel(eta_v=slice(1, None))
         v_first["eta_v"] = v_first["eta_v"] + 1
         
         v_rho = 0.5 * (v_first + v_last)
@@ -309,6 +337,7 @@ class Pactcs30Dataset(Dataset):
     
         var_norm = [v for v in data_vars if v not in keep_raw]
     
+        # get mean and standard deviation for normalization
         for v in var_norm:
             match v:
                 case "u":
@@ -323,6 +352,7 @@ class Pactcs30Dataset(Dataset):
     
         new = xr.Dataset()
     
+        # select data that is needed for prediction
         for v in data_vars:
             match v:
                 case "u":
@@ -335,11 +365,11 @@ class Pactcs30Dataset(Dataset):
                     else:
                         new[v] = dataset[v]
         
-        # used to make data behave more like normal distribution
+        # normalization of all data
         for v in var_norm:
             new[v] = (new[v] - self.mean[v]) / self.std[v]
 
-        # Needed for dimensional reduction
+        # Pad data if model reduces spatial dimensions during forward pass
         if pad is not None:
             x_pad, y_pad = pad
             new = new.pad(
@@ -352,7 +382,7 @@ class Pactcs30Dataset(Dataset):
         new = new.fillna(0)
         return new
 
-    def tensor_to_dataset(self, tensor, pred_vars):
+    def tensor_to_dataset(self, tensor, pred_vars=None):
         """
         Turn tensor into dataset.
     
@@ -364,7 +394,11 @@ class Pactcs30Dataset(Dataset):
             xarray.Dataset: Tensor represented as dataset
         """
 
+        if pred_vars is None:
+            pred_vars = self.pred_vars
+
         if not self.grid:
+            # store data in grid rather than graph
             tensor = rearrange(tensor, "(w h) c -> c w h", w=self.original_dim[0], h=self.original_dim[1])
     
         tensor_data = tensor.numpy()
@@ -404,7 +438,7 @@ class Pactcs30Dataset(Dataset):
         self,
         dataset,
         path,
-        data_vars,
+        data_vars=None,
         scales=None,
         return_scales=False,
     ):
@@ -422,6 +456,10 @@ class Pactcs30Dataset(Dataset):
         Returns:
             dict: {var_name: (vmin, vmax)} if return_scales is True, else None.
         """
+
+        if data_vars is None:
+            data_vars = pred_vars
+
         create_dir = Path(path)
         create_dir.mkdir(parents=True, exist_ok=True)
 
@@ -433,18 +471,19 @@ class Pactcs30Dataset(Dataset):
             da = dataset[v]
 
             if self.pad is not None:
+                # reverse padding if applied for forward pass
                 x_pad, y_pad = self.pad
                 da = da.isel(eta_rho=slice(x_pad, -x_pad), xi_rho=slice(y_pad, -y_pad))
 
             if scales is not None and v in scales:
                 vmin, vmax = scales[v]
             else:
+                # calculate vmin and vmax to keep same scales between lable and prediction plots
                 vmin, vmax = np.nanpercentile(da, 2), np.nanpercentile(da, 98)
 
             if return_scales:
                 used_scales[v] = (vmin, vmax)
 
-            # 2. Plot using computed or passed scales
             plot_kwargs = {
                 "ax": ax,
                 "x": "longitude",

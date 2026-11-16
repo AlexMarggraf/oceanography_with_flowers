@@ -5,6 +5,8 @@ from neuralop.layers.channel_mlp import ChannelMLP
 class Pactcs30FNO(nn.Module):
     """
     FNO architecture for predicting pactcs30 data.
+    Inverted bottleneck structure for lifting and 
+    projecting are used.
 
     Args:
         start_channels (int): Amount of channels, i.e. data variables plus encodings

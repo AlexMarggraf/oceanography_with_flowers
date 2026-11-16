@@ -81,8 +81,8 @@ class Block(nn.Module):
 class Stage(nn.Module):
     """
     Implementation of a ConvNeXt Stage for the ROMS pactcs30 dataset.
-    skip_projection is needed because the bottleneck stage increases the
-    feature dimensions by 2.
+    skip_projection should be used to reduce feature dimensions after
+    concatenating the input with a skip.
 
     Args:
         dim_in (int): Number of input channels.
