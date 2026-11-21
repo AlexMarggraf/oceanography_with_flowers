@@ -21,7 +21,7 @@ from oceanography_with_flowers.model import (
     ScOT,
     GAOT
 )
-from oceanography_with_flowers.data.dataset import Pactcs30Dataset
+from oceanography_with_flowers.data.satadet import Pactcs30Dataset
 from oceanography_with_flowers.trainer import Pactcs30Trainer
 from oceanography_with_flowers.gaot_config import ModelConfig
 
@@ -51,7 +51,7 @@ def main(model_path, data_path):
     logging.info(f"data config:\n{OmegaConf.to_yaml(data_cfg)}")
 
     path = data_cfg.path
-    data_vars = data_cfg.data_vars
+    meta_vars = data_cfg.meta_vars
     pred_vars = data_cfg.pred_vars
     split = data_cfg.split
     weight_path = data_cfg.weight_path
@@ -60,14 +60,11 @@ def main(model_path, data_path):
     rollout = data_cfg.rollout
     width = data_cfg.width
     height = data_cfg.height
-    pad_x = data_cfg.pad_x
-    pad_y = data_cfg.pad_y
 
     project_name = model_cfg.project_name
     model_name = model_cfg.model_name
     batch_size = model_cfg.batch_size
     epochs = model_cfg.epochs
-    acc_steps = model_cfg.acc_steps
 
     pad = None
     grid = True
@@ -75,9 +72,16 @@ def main(model_path, data_path):
     latent_dim = None
     
     match model_name:
-        case "flower" | "cnunet" | "scot":
-            model = instantiate(model_cfg.model, spatial_resolution=(width + pad_x, height + pad_y)).to(device)
-            pad = (2*pad_x, 2*pad_y)
+        case "flower" | "scot":
+            pad_x = model_cfg.pad_x
+            pad_y = model_cfg.pad_y
+            model = instantiate(model_cfg.model, spatial_resolution=(width + 2*pad_x, height + 2*pad_y)).to(device)
+            pad = (pad_x, pad_y)
+        case "cnunet" :
+            pad_x = model_cfg.pad_x
+            pad_y = model_cfg.pad_y
+            model = instantiate(model_cfg.model).to(device)
+            pad = (pad_x, pad_y)
         case "gaot":
             # adhereing to build pipeline of original GAOT code
             default = OmegaConf.structured(ModelConfig)
@@ -106,15 +110,18 @@ def main(model_path, data_path):
     dls = []
     for i, ts in enumerate(timespans):
         logging.info(f"timespan for {i+1}. training dataloader: {ts}")
+
+        ds_rollout = rollout if i > 0 else 2
+
         dls.append(
             DataLoader(
                 Pactcs30Dataset(
-                    path, 
-                    data_vars,
+                    path,
                     pred_vars,
+                    meta_vars,
                     pad,
                     delta=delta,
-                    rollout=rollout,
+                    rollout=ds_rollout,
                     timespan=ts,
                     grid=grid,
                     latent_dim=latent_dim
@@ -124,7 +131,7 @@ def main(model_path, data_path):
             )
         )
 
-    total_steps = math.ceil(len(dls[0]) * epochs / acc_steps)
+    total_steps = math.ceil(len(dls[0]) * epochs)
     warmup_steps = math.ceil(total_steps * 0.05) # 5% of total epochs are warmup
     decay_steps = total_steps - warmup_steps
     logging.info(f"scheduler steps: {warmup_steps} / {decay_steps}")
@@ -152,12 +159,12 @@ def main(model_path, data_path):
         
     trainer = Pactcs30Trainer(
         model,
+        model_name,
         dls,
         loss_fn,
         optimizer,
         scheduler,
         epochs,
-        acc_steps,
         device,
         rollout,
         gaot=gaot

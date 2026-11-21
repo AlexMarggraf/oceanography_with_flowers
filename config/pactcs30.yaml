@@ -1,7 +1,7 @@
 path: "/scicore/home/dokman0000/GROUP/pactcs30/" # path to data files
-data_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL", "dx", "dy", "angle", "mask_rho"] # all variables that are needed from the dataset
+meta_vars: ["mask_rho", "angle", "dx", "dy", "dA"] # metadata variables
 pred_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL"] # the variables that are supposed to be predicted
-split: [2015, 2016, 2017] # yearly split of the training and validation data
+split: [2000, 2016, 2018] # yearly split of the training and validation data
 weight_path: "oceanography_with_flowers/weights" # path to the weights folder
 wandb_path: "oceanography_with_flowers" # path to the weights and biases folder
 delta: 6 # how large one prediction step is

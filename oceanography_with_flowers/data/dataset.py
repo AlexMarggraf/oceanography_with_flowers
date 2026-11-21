@@ -32,8 +32,8 @@ class Pactcs30Dataset(Dataset):
     def __init__(
         self,
         path,
-        data_vars,
         pred_vars,
+        meta_vars,
         pad,
         delta=5,
         rollout=1,
@@ -41,7 +41,7 @@ class Pactcs30Dataset(Dataset):
         timespan=[2010],
         depth=1,
         grid=True,
-        latent_dim=(128, 128)
+        latent_dim=(256, 256)
     ):
         self.pred_vars = pred_vars
         self.delta = delta
@@ -50,10 +50,12 @@ class Pactcs30Dataset(Dataset):
         self.grid = grid
         self.latent_dim = latent_dim
         logging.info(f"delta: {delta}")
+        logging.info(f"rollout: {rollout}")
 
         self.mean = dict()
         self.std = dict()
 
+        data_vars = pred_vars + meta_vars
         dataset = self.load_pactcs30(path, timespan)
         dataset = self.clean_pactcs30(dataset, data_vars, pad, keep_raw=keep_raw)
         logging.info(f"data variables: {list(dataset.data_vars)}")
@@ -69,52 +71,40 @@ class Pactcs30Dataset(Dataset):
         self.lon_rho = dataset["lon_rho"]
 
         self.len = dataset.sizes["time"]
-        self.coast_mask = torch.from_numpy(dataset["mask_rho"].values)
+        coast_mask = torch.from_numpy(dataset["mask_rho"].values)
+        meta_vars = [v for v in meta_vars if v != "mask_rho"] + ["lat_rho", "lon_rho"]
 
         if grid:
-            # shape should be [Rollout, Channel, coast_mask.shape]
-            self.bool_coast_mask = self.coast_mask.bool()
-            self.coast_mask = self.coast_mask.expand(rollout, 1, *self.coast_mask.shape)
+            self.bool_coast_mask = coast_mask.bool()
+            # time and data are stored seperately to prevent slicing
+            self.data = torch.empty((self.len, len(pred_vars), *coast_mask.shape))
+            self.time = torch.empty((self.len, 2, *coast_mask.shape))
+
+            metadata = [coast_mask]
+
+            for v in meta_vars:
+                tensor = torch.from_numpy(dataset[v].values)
+                metadata.append(tensor)
+
+            self.metadata = torch.stack(metadata)
+            # shape should be [Rollout, metadata.shape]
+            self.metadata = self.metadata.expand(rollout, *self.metadata.shape)
+        else:
+            coast_mask = coast_mask.flatten()
+            self.bool_coast_mask = coast_mask.bool()
 
             # time and data are stored seperately to prevent slicing
-            self.data = torch.empty((self.len, len(pred_vars), *self.coast_mask.shape[2:]))
-            self.time = torch.empty((self.len, 2, *self.coast_mask.shape[2:]))
-        else:
-            # shape should be [Rollout, coast_mask.shape, Channel]
-            self.bool_coast_mask = self.coast_mask.flatten().bool()
-            self.coast_mask = repeat(self.coast_mask, "w h -> r (w h) c", r=rollout, c=1)
+            self.data = torch.empty((self.len, *coast_mask.shape, len(pred_vars),))
+            self.time = torch.empty((self.len, *coast_mask.shape, 2))
 
-            # time and data are stored seperately to prevent slicing
-            self.data = torch.empty((self.len, self.coast_mask.shape[1], len(pred_vars),))
-            self.time = torch.empty((self.len, self.coast_mask.shape[1], 2))
+            metadata = [coast_mask]
 
-        logging.info(f"bool coast mask shape: {self.bool_coast_mask.shape}")
-        logging.info(f"coast mask shape: {self.coast_mask.shape}")
+            for v in meta_vars:
+                metadata.append(torch.from_numpy(dataset[v].values).flatten())
 
-        if grid:
-            # positional encoding because data is on a curvilinear grid
-            h_xi = torch.from_numpy(dataset["dx"].values)
-            h_eta = torch.from_numpy(dataset["dy"].values)
-            
-            cos_angle = torch.cos(torch.from_numpy(dataset["angle"].values))
-            sin_angle = torch.sin(torch.from_numpy(dataset["angle"].values))
-
-            self.positional = torch.stack(
-                [
-                    h_xi * cos_angle,
-                    h_xi * sin_angle,
-                    -h_eta * sin_angle,
-                    h_eta * cos_angle,
-                ]
-            )
-
-            # shape should be [Rollout, Channel, Width, Height]
-            self.positional = self.positional.expand(rollout, *self.positional.shape)
-            logging.info(f"positional encodings shape: {self.positional.shape}")
-        else:
-            # rotation of dataset gridpoints
-            angles = torch.from_numpy(dataset["angle"].values)
-            self.angles = repeat(angles, "w h -> r (w h) c", r=rollout, c=1)
+            self.metadata = torch.stack(metadata)
+            # shape should be [Rollout, metadata.shape]
+            self.metadata = self.metadata.expand(rollout, *self.metadata.shape)
 
             # latent gridpoints for gaot
             x_latent_steps = torch.linspace(-1, 1, latent_dim[0])
@@ -132,6 +122,7 @@ class Pactcs30Dataset(Dataset):
             lat_min = np.min(dataset["lat_rho"])
             lat_max = np.max(dataset["lat_rho"])
 
+            # mapping lat / lon onto [-1, 1]^2
             lon_normal = 2 * (dataset["lon_rho"] - lon_min) / (lon_max - lon_min) - 1
             lat_normal = 2 * (dataset["lat_rho"] - lat_min) / (lat_max - lat_min) - 1
             x_real_grid = torch.from_numpy(lon_normal.values)
@@ -143,6 +134,9 @@ class Pactcs30Dataset(Dataset):
 
             logging.info(f"latent grid shape: {self.latent_grid.shape}")
             logging.info(f"real grid shape: {self.real_grid.shape}")
+
+        logging.info(f"bool coast mask shape: {self.bool_coast_mask.shape}")
+        logging.info(f"metadata shape: {self.metadata.shape}")
 
         row = dataset.sizes["eta_rho"]
         col = dataset.sizes["xi_rho"]
@@ -211,16 +205,14 @@ class Pactcs30Dataset(Dataset):
         if self.grid:
             metadata = torch.cat(
                 [
-                    self.coast_mask,
-                    self.positional,
+                    self.metadata,
                     time
                 ], dim=1
             )
         else:
             metadata = torch.cat(
                 [
-                    self.coast_mask,
-                    self.angles,
+                    self.metadata,
                     time
                 ], dim=-1
             )
@@ -372,11 +364,35 @@ class Pactcs30Dataset(Dataset):
         # Pad data if model reduces spatial dimensions during forward pass
         if pad is not None:
             x_pad, y_pad = pad
+
+            # needed for plotting later
+            lat_attrs = new["lat_rho"].attrs
+            lon_attrs = new["lon_rho"].attrs
+
+            lat_pad = new["lat_rho"].pad(
+                eta_rho=(x_pad, x_pad),
+                xi_rho=(y_pad, y_pad),
+                mode="constant",
+                constant_values=0
+            )
+
+            lon_pad = new["lon_rho"].pad(
+                eta_rho=(x_pad, x_pad),
+                xi_rho=(y_pad, y_pad),
+                mode="constant",
+                constant_values=0
+            )
+
             new = new.pad(
                 eta_rho=(x_pad, x_pad),
                 xi_rho=(y_pad, y_pad),
                 mode="constant",
                 constant_values=0
+            )
+
+            new = new.assign_coords(
+                lat_rho=(lat_pad.dims, lat_pad.values, lat_attrs),
+                lon_rho=(lon_pad.dims, lon_pad.values, lon_attrs),
             )
 
         new = new.fillna(0)
@@ -458,7 +474,7 @@ class Pactcs30Dataset(Dataset):
         """
 
         if data_vars is None:
-            data_vars = pred_vars
+            data_vars = self.pred_vars
 
         create_dir = Path(path)
         create_dir.mkdir(parents=True, exist_ok=True)

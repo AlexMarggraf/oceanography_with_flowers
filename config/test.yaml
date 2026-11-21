@@ -1,0 +1,18 @@
+path: "/scicore/home/dokman0000/GROUP/pactcs30/" # path to data files
+weight_path: "oceanography_with_flowers/weights/flower/run_"
+test_path: "oceanography_with_flowers/test"
+run_id: "uidwyaml"
+meta_vars: ["mask_rho", "angle", "dx", "dy", "dA"] # metadata variables
+pred_vars: ["u", "v", "w", "temp", "salt", "zeta", "NO3", "DIC", "PCO2OC", "TOT_CHL"] # the variables that are supposed to be predicted
+split: [2018, 2020] # yearly split of the training and validation data
+sample_days: [0, 90, 181, 272]
+delta: 6 # how large one prediction step is
+rollout: 5 # how many prediction steps to do
+width: 518
+height: 604
+
+nrmse:
+  _target_: __main__.NRMSE
+
+vrmse: 
+  _target_: __main__.VRMSE

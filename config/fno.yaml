@@ -1,12 +1,11 @@
-project_name: "test" # the weights and biases project name
+project_name: "rollout" # the weights and biases project name
 model_name: "fno"
-epochs: 5
+epochs: 20
 batch_size: 4
-acc_steps: 4 # steps for gradient accumulation
 
 model:
   _target_: __main__.Pactcs30FNO
-  start_channels: 17
+  start_channels: 19
   end_channels: 10
   hidden_channels: 180
   modes: 16

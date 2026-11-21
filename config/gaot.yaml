@@ -1,22 +1,21 @@
-project_name: "test" # the weights and biases project name
+project_name: "rollout" # the weights and biases project name
 model_name: "gaot"
-epochs: 5
+epochs: 20
 batch_size: 4
-acc_steps: 4 # steps for gradient accumulation
 
 model:
   name: "gaot"
-  latent_tokens_size: [128, 128] # how many latent gridpoints to use, higher means finer details in final image
-  dim_in: 14
+  latent_tokens_size: [256, 256] # how many latent gridpoints to use, higher means finer details in final image
+  dim_in: 17
   dim_out: 10
   args:
     magno:
-      radius: 0.0165 # how large the radius is for the geometric embeddings, make sure to get full coverage of the data
+      radius: 0.00825 # how large the radius is for the geometric embeddings, make sure to get full coverage of the data
       hidden_size: 256
       embedding_method: "pointnet" # use pointnet or geometric embeddings
     transformer:
       patch_size: 2
-      hidden_size: 480
+      hidden_size: 256
       num_layers: 5
 
 loss_fn:

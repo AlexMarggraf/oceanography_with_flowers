@@ -1,14 +1,14 @@
 #!/bin/bash
 
-#SBATCH --job-name=ref_test            #This is the name of your job
+#SBATCH --job-name=snyth_data           #This is the name of your job
 #SBATCH --cpus-per-task=4                 #This is the number of cores reserved
 #SBATCH --mem-per-cpu=16G              #This is the memory reserved per core.
 
 #SBATCH --time=00:30:00        #This is the time that your task will run
-#SBATCH --qos=30min     #You will run in this queue
-#SBATCH --partition=scicore
+#SBATCH --qos=rtx4090-30min    #You will run in this queue
+#SBATCH --partition=rtx4090
 #SBATCH --ntasks=1
-##SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:1
 
 # Paths to STDOUT or STDERR files should be absolute or relative to current working directory
 #SBATCH --output=%x.out    #These are the STDOUT and STDERR files
@@ -35,4 +35,4 @@ export TORCHINDUCTOR_COMPILE_THREADS=1
 
 #add your command lines below
 #############################
-uv run oceanography_with_flowers/train.py --model-path config/gaot.yaml --data-path config/pactcs30.yaml
+uv run oceanography_with_flowers/pain.py --model-path config/flower_with_goatee_glasses.yaml --data-path config/pactcs31.yaml

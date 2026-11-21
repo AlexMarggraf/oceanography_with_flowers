@@ -1,4 +1,4 @@
-import numpy as np
+import math
 import logging
 import torch
 import wandb
@@ -12,6 +12,7 @@ class Pactcs30Trainer():
 
     Args:
         model (nn.Module): Model used for training
+        model_name (str): Name of the model
         dls ([Dataloader]): Training and Validation dataloaders
         loss_fn (Callable): Loss function to be used in training and validation
         optimizer (torch.optim.Optimizer): Optimizer used during training
@@ -25,34 +26,34 @@ class Pactcs30Trainer():
     def __init__(
         self, 
         model, 
+        model_name,
         dls,
         loss_fn, 
         optimizer, 
         scheduler, 
         epochs,
-        acc_steps,
         device, 
         rollout,
         gaot=False
     ):
         self.model = model
+        self.model_name = model_name
         self.dls = dls
         self.mask = dls[0].dataset.get_mask()
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.epochs = epochs
-        self.acc_steps = acc_steps
         self.device = device
         self.rollout = rollout
         self.gaot=gaot
         self.first_pass = True
 
         if gaot:
-            self.latent_grid = self.dls[0].dataset.get_latent_grid().to(self.device, non_blocking=True)
-            self.real_grid = self.dls[0].dataset.get_real_grid().to(self.device, non_blocking=True)
+            self.latent_grid = dls[0].dataset.get_latent_grid().to(device, non_blocking=True)
+            self.real_grid = dls[0].dataset.get_real_grid().to(device, non_blocking=True)
 
-    def train_model(self):
+    def train_model(self, do_rollout):
         total_loss = 0
         step_loss = 0
         rollout_loss = 0
@@ -76,10 +77,11 @@ class Pactcs30Trainer():
                 mask = self.mask.expand_as(label[:, 0])
 
             loss = self.loss_fn(curr_state[mask], label[:, 0][mask])
-            loss /= self.acc_steps
 
-            total_loss += loss.item()
             step_loss += loss.item()
+
+            if do_rollout:
+                total_loss += loss.item()
 
             loss.backward()
 
@@ -94,40 +96,30 @@ class Pactcs30Trainer():
                 
                 self.first_pass = False
 
-            # create noise for push-forward trick
-            with torch.no_grad():
-                for j in range(1, self.dls[0].dataset.rollout - 1):
-                    if self.gaot:
-                        curr_state = torch.cat([curr_state, metadata[:, j]], dim=-1)
-                        curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
-                    else:
-                        curr_state = torch.cat([curr_state, metadata[:, j]], dim=1)
-                        curr_state = self.model(curr_state)
+            if do_rollout:
+                # rollout prediction
+                curr_state = curr_state.detach()
+                if self.gaot:
+                    curr_state = torch.cat([curr_state, metadata[:, -1]], dim=-1)
+                    curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
+                else:
+                    curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
+                    curr_state = self.model(curr_state)
 
-            # rollout prediction
-            if self.gaot:
-                curr_state = torch.cat([curr_state, metadata[:, -1]], dim=-1)
-                curr_state = self.model(self.latent_grid, self.real_grid, curr_state)
-            else:
-                curr_state = torch.cat([curr_state, metadata[:, -1]], dim=1)
-                curr_state = self.model(curr_state)
+                loss = self.loss_fn(curr_state[mask], label[:, 1][mask])
 
-            loss = self.loss_fn(curr_state[mask], label[:, 1][mask])
-            loss /= self.acc_steps
+                total_loss += loss.item()
+                rollout_loss += loss.item()
+                
+                loss.backward()
 
-            total_loss += loss.item()
-            rollout_loss += loss.item()
-            
-            loss.backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad(set_to_none=True)
+            self.scheduler.step()
 
-            if (i+1) % self.acc_steps == 0 or (i+1) == no_batches:
-                self.optimizer.step()
-                self.optimizer.zero_grad(set_to_none=True)
-                self.scheduler.step()
-
-        step_loss = step_loss * self.acc_steps / no_batches
-        rollout_loss = rollout_loss * self.acc_steps / no_batches
-        total_loss = total_loss * self.acc_steps / no_batches
+        step_loss /= no_batches
+        rollout_loss /= no_batches
+        total_loss /= no_batches
 
         return step_loss, rollout_loss, total_loss
     
@@ -155,7 +147,6 @@ class Pactcs30Trainer():
                     curr_state = self.model(curr_state)
                     mask = self.mask.expand_as(label[:, 0])
 
-    
                 loss = self.loss_fn(curr_state[mask], label[:, 0][mask])
 
                 total_loss += loss.item()
@@ -251,13 +242,17 @@ class Pactcs30Trainer():
         """
 
         run = wandb.init(project=project_name, config=config, dir=wandb_path, reinit=True)
-        weight_path = Path(f"{weight_path}/run_{run.id}")
+        weight_path = Path(f"{weight_path}/{self.model_name}/run_{run.id}")
         weight_path.mkdir(parents=True, exist_ok=True)
+
         best_loss = float("inf")
+        rollout_start = math.floor(self.epochs * 0.2)
         
         for epoch in range(self.epochs):
-            step_loss, rollout_loss, total_loss = self.train_model() 
-            step_val, rollout_val, total_val = self.validate_model(best_loss, img_path=f"{wandb_path}/img/{run.id}")
+            do_rollout = True if (epoch + 1) > rollout_start else False
+
+            step_loss, rollout_loss, total_loss = self.train_model(do_rollout) 
+            step_val, rollout_val, total_val = self.validate_model(best_loss, img_path=f"{wandb_path}/img/{self.model_name}/{run.id}")
 
             if epoch == 0:
                 max_mem_gb = torch.cuda.max_memory_allocated() / (1024 ** 3)

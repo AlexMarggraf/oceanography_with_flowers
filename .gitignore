@@ -20,6 +20,7 @@ oceanography_with_flowers/wandb/
 
 # images
 oceanography_with_flowers/img/
+oceanography_with_flowers/test/
 
 #slurm
 *.err
